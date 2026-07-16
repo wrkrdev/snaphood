@@ -38,6 +38,13 @@ const schema = z.object({
 });
 
 const guardrailVersion = "2026-07-16.public-demo-v1";
+type DraftLaunchState = {
+  id: string;
+  status: string;
+  contract_address: string | null;
+  tx_hash: string | null;
+  chain_id: number | null;
+};
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();
@@ -65,18 +72,70 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Launch form is incomplete or invalid." }, { status: 400 });
   }
 
-  const ownership = await query<{ id: string }>(
-    "select id from snaphood_token_drafts where id = $1 and user_id = $2 limit 1",
+  const allocationTotal = parsed.data.tokenomics.allocation.reduce((sum, row) => sum + row.percent, 0);
+  if (allocationTotal !== 100) {
+    return NextResponse.json({ error: "Tokenomics allocation must total 100%." }, { status: 400 });
+  }
+
+  if (!/^(\d+|\d{1,3}(,\d{3})+)$/.test(parsed.data.tokenomics.supply)) {
+    return NextResponse.json({ error: "Token supply must be a whole number." }, { status: 400 });
+  }
+
+  const supply = BigInt(parsed.data.tokenomics.supply.replace(/,/g, ""));
+  if (supply <= 0n) {
+    return NextResponse.json({ error: "Token supply must be a positive number." }, { status: 400 });
+  }
+
+  const ownership = await query<DraftLaunchState>(
+    `
+      select id, status, contract_address, tx_hash, chain_id
+      from snaphood_token_drafts
+      where id = $1 and user_id = $2
+      limit 1
+    `,
     [parsed.data.draftId, user.id]
   );
 
-  if (!ownership.rows[0]) {
+  const draftState = ownership.rows[0];
+  if (!draftState) {
     return NextResponse.json({ error: "Draft not found." }, { status: 404 });
   }
 
-  await query("update snaphood_token_drafts set status = 'launching', updated_at = now() where id = $1", [
-    parsed.data.draftId
-  ]);
+  if (draftState.status === "launched" && draftState.contract_address && draftState.tx_hash && draftState.chain_id) {
+    return NextResponse.json({
+      launch: {
+        contractAddress: draftState.contract_address,
+        txHash: draftState.tx_hash,
+        chainId: draftState.chain_id,
+        explorerUrl: `${env.robinhoodBlockExplorerUrl.replace(/\/$/, "")}/address/${draftState.contract_address}`,
+        mode: env.launchMode,
+        name: parsed.data.name,
+        ticker: parsed.data.ticker,
+        reused: true
+      }
+    });
+  }
+
+  if (draftState.status === "launching") {
+    return NextResponse.json({ error: "This draft is already launching. Refresh in a moment." }, { status: 409 });
+  }
+
+  if (draftState.status !== "draft") {
+    return NextResponse.json({ error: "This draft cannot be launched. Create a new draft and try again." }, { status: 409 });
+  }
+
+  const transition = await query<{ id: string }>(
+    `
+      update snaphood_token_drafts
+      set status = 'launching', updated_at = now()
+      where id = $1 and user_id = $2 and status = 'draft'
+      returning id
+    `,
+    [parsed.data.draftId, user.id]
+  );
+  if (!transition.rows[0]) {
+    return NextResponse.json({ error: "This draft is already being launched." }, { status: 409 });
+  }
 
   try {
     const launch = await launchToken(parsed.data);

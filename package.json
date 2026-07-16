@@ -14,6 +14,7 @@
     "swap:smoke": "node scripts/swap-uniswap-v3-smoke.mjs",
     "verify:env-example": "node scripts/check-env-example.mjs",
     "verify:smoke": "node scripts/smoke.mjs",
+    "verify:launch-consistency": "node scripts/launch-consistency.mjs",
     "verify:readiness": "node scripts/readiness.mjs",
     "dex:sync": "node scripts/sync-dexscreener.mjs",
     "db:migrate": "tsx scripts/migrate.ts",

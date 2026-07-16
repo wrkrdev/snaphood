@@ -81,6 +81,15 @@ SNAPHOOD_SMOKE_GENERATE=true npm run verify:smoke
 That path signs in, uploads a generated 1x1 PNG, and checks that `/api/generate` returns persisted draft metadata and image URLs.
 It may call configured AI/image providers, so keep it opt-in for low-cost routine checks.
 
+To verify launch idempotency without spending funds, restart the local app with `TOKEN_LAUNCH_MODE=demo`, then run:
+
+```bash
+npm run verify:launch-consistency
+```
+
+The verifier creates a draft directly in Postgres, launches it through the API, and confirms a repeated launch request reuses the
+first receipt instead of creating another token.
+
 `npm run db:seed` is idempotent. It inserts or updates the public SNAPG proof launch, Uniswap v3 pool metadata,
 proof events, and compact Dexscreener cache so a fresh Wrkr database has a tradable coin on the homepage after migration.
 

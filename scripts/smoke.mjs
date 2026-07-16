@@ -25,12 +25,15 @@ if (requireCoin) {
   assert(first.contractAddress, "first coin should include a contract address");
   assert(first.profileImageUrl && first.bannerImageUrl, "first coin should include stored images");
 
-  const detail = await checkJson(`/api/coins/${first.contractAddress}`, "coin detail");
-  assert(detail.coin?.contractAddress?.toLowerCase() === first.contractAddress.toLowerCase(), "coin detail should match feed contract");
+  const proofCoin = coinsPayload.coins.find((coin) => coin.dexscreenerUrl || coin.poolAddress) ?? first;
+  assert(proofCoin.contractAddress, "proof coin should include a contract address");
+
+  const detail = await checkJson(`/api/coins/${proofCoin.contractAddress}`, "coin detail");
+  assert(detail.coin?.contractAddress?.toLowerCase() === proofCoin.contractAddress.toLowerCase(), "coin detail should match feed contract");
   assert(detail.coin?.explorerUrl, "coin detail should include explorer URL");
 
-  const proof = await checkJson(`/api/coins/${first.contractAddress}/proof`, "launch proof");
-  assert(proof.proof?.contractAddress?.toLowerCase() === first.contractAddress.toLowerCase(), "launch proof should match feed contract");
+  const proof = await checkJson(`/api/coins/${proofCoin.contractAddress}/proof`, "launch proof");
+  assert(proof.proof?.contractAddress?.toLowerCase() === proofCoin.contractAddress.toLowerCase(), "launch proof should match feed contract");
   assert(Array.isArray(proof.proof?.events), "launch proof should expose event history");
   assert(proof.proof.events.some((event) => event.eventType === "launch.completed"), "launch proof should include launch.completed event");
   assert(proof.proof.guardrails?.acknowledgements, "launch proof should include persisted guardrail acknowledgements");
@@ -41,17 +44,17 @@ if (requireCoin) {
   assert(proof.proof.timeline.some((item) => item.label === "Token deployed" && item.status === "complete"), "launch proof should include completed deployment");
   assert(proof.proof.timeline.every((item) => item.status === "complete"), "seeded launch proof timeline should be complete");
 
-  const tradable = coinsPayload.coins.find((coin) => coin.dexscreenerUrl || coin.poolAddress);
+  const tradable = proofCoin.dexscreenerUrl || proofCoin.poolAddress ? proofCoin : undefined;
   assert(tradable, "expected at least one tradable coin with pool or Dexscreener metadata");
 
-  const coinPage = await checkPage(`/coin/${first.contractAddress}`, first.ticker);
-  assert(coinPage.includes(`${first.name} ($${first.ticker})`), "coin page should include token-specific metadata title");
+  const coinPage = await checkPage(`/coin/${proofCoin.contractAddress}`, proofCoin.ticker);
+  assert(coinPage.includes(`${proofCoin.name} ($${proofCoin.ticker})`), "coin page should include token-specific metadata title");
   assert(coinPage.includes('property="og:title"'), "coin page should include Open Graph title metadata");
   assert(coinPage.includes('name="twitter:card"'), "coin page should include Twitter card metadata");
 
-  const sitemap = await checkPage("/sitemap.xml", first.contractAddress);
+  const sitemap = await checkPage("/sitemap.xml", proofCoin.contractAddress);
   assert(sitemap.includes("/stack"), "sitemap should include stack proof page");
-  assert(sitemap.includes(`/coin/${first.contractAddress}`), "sitemap should include launched coin page");
+  assert(sitemap.includes(`/coin/${proofCoin.contractAddress}`), "sitemap should include launched coin page");
 }
 
 const authPayload = await postJson("/api/auth/start", {
