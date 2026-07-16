@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { listLaunchedCoins, type CoinFeedCursor } from "@/lib/coins";
 
+const publicFeedCacheHeaders = {
+  "Cache-Control": "public, max-age=15, stale-while-revalidate=45"
+};
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -14,19 +18,24 @@ export async function GET(request: Request) {
     const lastCoin = coins.at(-1);
     const hasMore = page.length > limit;
 
-    return NextResponse.json({
-      coins,
-      filters: {
-        chainId: chainId ?? null,
-        limit,
-        query: search,
-        tradable: tradableOnly
+    return NextResponse.json(
+      {
+        coins,
+        filters: {
+          chainId: chainId ?? null,
+          limit,
+          query: search,
+          tradable: tradableOnly
+        },
+        pagination: {
+          hasMore,
+          nextCursor: hasMore && lastCoin ? encodeCursor({ id: lastCoin.id, updatedAt: lastCoin.updatedAt }) : null
+        }
       },
-      pagination: {
-        hasMore,
-        nextCursor: hasMore && lastCoin ? encodeCursor({ id: lastCoin.id, updatedAt: lastCoin.updatedAt }) : null
+      {
+        headers: publicFeedCacheHeaders
       }
-    });
+    );
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Could not load launched coins.", coins: [] },

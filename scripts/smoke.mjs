@@ -28,6 +28,7 @@ if (health.readiness?.storage) {
 const coinsPayload = await checkJson("/api/coins", "coins");
 assert(Array.isArray(coinsPayload.coins), "coins response should include an array");
 assert(typeof coinsPayload.pagination?.hasMore === "boolean", "coins response should include pagination state");
+await checkCacheHeader("/api/coins", "coin feed cache");
 
 const statsPayload = await checkJson("/api/coins/stats", "coin stats");
 assert(Number.isInteger(statsPayload.stats?.totalLaunches), "coin stats should include totalLaunches");
@@ -36,6 +37,7 @@ assert(Number.isInteger(statsPayload.stats?.chainCount), "coin stats should incl
 assert(typeof statsPayload.stats?.totalLiquidityUsd === "number", "coin stats should include totalLiquidityUsd");
 assert(typeof statsPayload.stats?.totalVolume24hUsd === "number", "coin stats should include totalVolume24hUsd");
 assert(statsPayload.stats.totalLaunches >= coinsPayload.coins.length, "stats total should cover the current feed page");
+await checkCacheHeader("/api/coins/stats", "coin stats cache");
 
 if (requireCoin) {
   assert(coinsPayload.coins.length > 0, "expected at least one launched coin");
@@ -77,10 +79,12 @@ if (requireCoin) {
   const detail = await checkJson(`/api/coins/${proofCoin.contractAddress}`, "coin detail");
   assert(detail.coin?.contractAddress?.toLowerCase() === proofCoin.contractAddress.toLowerCase(), "coin detail should match feed contract");
   assert(detail.coin?.explorerUrl, "coin detail should include explorer URL");
+  await checkCacheHeader(`/api/coins/${proofCoin.contractAddress}`, "coin detail cache");
 
   const proof = await checkJson(`/api/coins/${proofCoin.contractAddress}/proof`, "launch proof");
   assert(proof.proof?.contractAddress?.toLowerCase() === proofCoin.contractAddress.toLowerCase(), "launch proof should match feed contract");
   assert(/^sha256:[a-f0-9]{64}$/.test(proof.proof?.proofHash ?? ""), "launch proof should include a sha256 fingerprint");
+  await checkCacheHeader(`/api/coins/${proofCoin.contractAddress}/proof`, "launch proof cache");
   assert(proof.proof?.proofVersion === "snaphood.launch-proof.v1", "launch proof should include a version");
   assert(Array.isArray(proof.proof?.events), "launch proof should expose event history");
   assert(proof.proof.events.some((event) => event.eventType === "launch.completed"), "launch proof should include launch.completed event");
@@ -225,6 +229,18 @@ async function checkSecurityHeaders(path) {
   assert(csp.includes("frame-ancestors 'none'"), "CSP should block framing");
   assert(csp.includes("object-src 'none'"), "CSP should block plugins");
   checks.push({ name: "security headers", status: response.status });
+}
+
+async function checkCacheHeader(path, name) {
+  const response = await fetch(`${baseUrl}${path}`, {
+    headers: withCookies({ "x-forwarded-for": syntheticIp })
+  });
+  assert(response.ok, `${path} should return 2xx for cache header check, got ${response.status}`);
+  const cacheControl = response.headers.get("cache-control") ?? "";
+  assert(cacheControl.includes("public"), `${path} should use public cache-control`);
+  assert(cacheControl.includes("max-age=15"), `${path} should use a short max-age`);
+  assert(cacheControl.includes("stale-while-revalidate=45"), `${path} should allow bounded stale revalidation`);
+  checks.push({ name, status: response.status });
 }
 
 async function checkOriginGuard() {
