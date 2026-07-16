@@ -37,6 +37,9 @@ jobs:
       - name: Audit public release posture
         run: npm run verify:public-release
 
+      - name: Verify AI normalization
+        run: npm run verify:ai-normalization
+
       - name: Verify contract artifact
         run: npm run contract:verify
 

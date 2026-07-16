@@ -54,6 +54,7 @@ npm run db:migrate
 npm run db:seed
 npm run verify:env-example
 npm run verify:secrets
+npm run verify:ai-normalization
 npm run contract:verify
 npm run build
 npm audit --audit-level=high

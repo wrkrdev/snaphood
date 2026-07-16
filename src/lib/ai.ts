@@ -1,9 +1,49 @@
 import { env } from "@/lib/env";
 import type { TokenDraft, Tokenomics } from "@/lib/types";
+import { z } from "zod";
 
 type GeneratedDraft = Pick<TokenDraft, "name" | "ticker" | "description" | "tokenomics"> & {
   promptSummary: string;
 };
+
+const fallbackAllocation = [
+  { label: "Community memes", percent: 45 },
+  { label: "Liquidity seed", percent: 30 },
+  { label: "Creator vault", percent: 15 },
+  { label: "Airdrops", percent: 10 }
+];
+
+const fallbackNotes = ["Fixed supply.", "No transfer tax.", "No implied investment value."];
+
+const rawDraftSchema = z.object({
+  name: z.unknown().optional(),
+  ticker: z.unknown().optional(),
+  description: z.unknown().optional(),
+  promptSummary: z.unknown().optional(),
+  tokenomics: z.unknown().optional()
+});
+
+const tokenomicsSchema = z.object({
+  supply: z.coerce
+    .string()
+    .trim()
+    .regex(/^(\d+|\d{1,3}(,\d{3})+)$/)
+    .catch(env.defaultTokenSupply),
+  decimals: z.coerce.number().int().min(0).max(36).catch(env.defaultTokenDecimals),
+  allocation: z
+    .array(
+      z.object({
+        label: z.coerce.string().trim().min(1).max(60),
+        percent: z.coerce.number().min(0).max(100)
+      })
+    )
+    .max(6)
+    .catch(fallbackAllocation),
+  notes: z.array(z.coerce.string().trim().min(1).max(160)).max(5).catch(fallbackNotes)
+});
+
+const prohibitedPromisePattern =
+  /\b(guaranteed|risk[-\s]?free|investment|profit|returns?|moonshot|pump|100x|1000x|financial advice)\b/gi;
 
 export async function generateDraftFromImage(file: File): Promise<GeneratedDraft> {
   if (!env.llmApiKey) {
@@ -125,65 +165,51 @@ async function generateFalImage(prompt: string, imageSize: { width: number; heig
   return imageUrl;
 }
 
-function normalizeDraft(input: Partial<GeneratedDraft>): GeneratedDraft {
-  const ticker = String(input.ticker ?? "SNAP")
+export function normalizeDraft(input: unknown): GeneratedDraft {
+  const parsed = rawDraftSchema.catch({}).parse(input ?? {});
+  const ticker = coerceText(parsed.ticker, "SNAP", 32)
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, "")
     .slice(0, 6);
 
-  const tokenomics = normalizeTokenomics(input.tokenomics);
+  const tokenomics = normalizeTokenomics(parsed.tokenomics);
 
   return {
-    name: String(input.name ?? "SnapHood Original").slice(0, 64),
+    name: coerceText(parsed.name, "SnapHood Original", 64, 2),
     ticker: ticker.length >= 3 ? ticker : "SNAP",
-    description: String(input.description ?? "A camera-born meme token for fun on Robinhood Chain.").slice(0, 800),
-    promptSummary: String(input.promptSummary ?? "Uploaded image converted into meme token metadata.").slice(0, 300),
+    description: sanitizeMarketingCopy(
+      coerceText(parsed.description, "A camera-born meme token for fun on Robinhood Chain.", 800, 20)
+    ),
+    promptSummary: sanitizeMarketingCopy(
+      coerceText(parsed.promptSummary, "Uploaded image converted into meme token metadata.", 300)
+    ),
     tokenomics
   };
 }
 
 function normalizeTokenomics(input: unknown): Tokenomics {
-  const value = input && typeof input === "object" ? (input as Partial<Tokenomics>) : {};
-  const allocation = Array.isArray(value.allocation)
-    ? value.allocation
-        .map((row) => ({
-          label: String(row.label ?? "Community"),
-          percent: parsePercent(row.percent)
-        }))
-        .filter((row) => row.label && Number.isFinite(row.percent))
-        .slice(0, 6)
-    : [];
+  const value = tokenomicsSchema.catch({
+    supply: env.defaultTokenSupply,
+    decimals: env.defaultTokenDecimals,
+    allocation: fallbackAllocation,
+    notes: fallbackNotes
+  }).parse(input ?? {});
+  const allocation = value.allocation
+    .map((row) => ({
+      label: sanitizeMarketingCopy(row.label).slice(0, 60) || "Community",
+      percent: Number(row.percent)
+    }))
+    .filter((row) => row.label && Number.isFinite(row.percent))
+    .slice(0, 6);
   const allocationTotal = allocation.reduce((sum, row) => sum + row.percent, 0);
   const usableAllocation = allocation.length > 0 && Math.abs(allocationTotal - 100) < 0.01;
 
   return {
-    supply: String(value.supply ?? env.defaultTokenSupply),
-    decimals: Number(value.decimals ?? env.defaultTokenDecimals),
-    allocation: usableAllocation
-      ? allocation
-      : [
-          { label: "Community memes", percent: 45 },
-          { label: "Liquidity seed", percent: 30 },
-          { label: "Creator vault", percent: 15 },
-          { label: "Airdrops", percent: 10 }
-        ],
-    notes: Array.isArray(value.notes)
-      ? value.notes.map((note) => String(note)).slice(0, 5)
-      : ["Fixed-supply demo token.", "No investment promises.", "Made for fun and test launches."]
+    supply: value.supply,
+    decimals: value.decimals,
+    allocation: usableAllocation ? allocation : fallbackAllocation,
+    notes: value.notes.map((note) => sanitizeMarketingCopy(note)).filter(Boolean).slice(0, 5)
   };
-}
-
-function parsePercent(input: unknown) {
-  if (typeof input === "number") {
-    return input;
-  }
-
-  if (typeof input === "string") {
-    const parsed = Number.parseFloat(input.replace("%", ""));
-    return Number.isFinite(parsed) ? parsed : 0;
-  }
-
-  return 0;
 }
 
 function fallbackDraft(fileName: string): GeneratedDraft {
@@ -210,17 +236,22 @@ function fallbackDraft(fileName: string): GeneratedDraft {
     tokenomics: {
       supply: env.defaultTokenSupply,
       decimals: env.defaultTokenDecimals,
-      allocation: [
-        { label: "Community memes", percent: 45 },
-        { label: "Liquidity seed", percent: 30 },
-        { label: "Creator vault", percent: 15 },
-        { label: "Airdrops", percent: 10 }
-      ],
-      notes: ["Fixed supply.", "No transfer tax.", "No implied investment value."]
+      allocation: fallbackAllocation,
+      notes: fallbackNotes
     }
   };
 }
 
 function titleCase(value: string) {
   return value.replace(/\w\S*/g, (word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase());
+}
+
+function sanitizeMarketingCopy(value: string) {
+  return value.replace(prohibitedPromisePattern, "meme").replace(/\s+/g, " ").trim();
+}
+
+function coerceText(value: unknown, fallback: string, maxLength: number, minLength = 1) {
+  const text = typeof value === "string" || typeof value === "number" || typeof value === "boolean" ? String(value).trim() : "";
+  if (text.length < minLength) return fallback;
+  return text.slice(0, maxLength);
 }

@@ -15,6 +15,7 @@
     "verify:env-example": "node scripts/check-env-example.mjs",
     "verify:secrets": "node scripts/check-secrets.mjs",
     "verify:smoke": "node scripts/smoke.mjs",
+    "verify:ai-normalization": "tsx scripts/ai-normalization.ts",
     "verify:launch-consistency": "node scripts/launch-consistency.mjs",
     "verify:readiness": "node scripts/readiness.mjs",
     "verify:public-release": "node scripts/public-release-audit.mjs",

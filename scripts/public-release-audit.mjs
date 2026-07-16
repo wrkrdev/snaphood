@@ -46,6 +46,7 @@ async function checkPackageScripts() {
     "verify:env-example",
     "verify:secrets",
     "verify:smoke",
+    "verify:ai-normalization",
     "verify:launch-consistency",
     "verify:readiness",
     "verify:public-release",
@@ -70,6 +71,7 @@ async function checkCiWorkflow() {
     "npm run verify:env-example",
     "npm run verify:secrets",
     "npm run verify:public-release",
+    "npm run verify:ai-normalization",
     "npm run contract:verify",
     "npm audit --audit-level=high",
     "npm run build"
