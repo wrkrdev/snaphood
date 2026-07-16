@@ -26,6 +26,7 @@ if (health.readiness?.storage) {
 
 const coinsPayload = await checkJson("/api/coins", "coins");
 assert(Array.isArray(coinsPayload.coins), "coins response should include an array");
+assert(typeof coinsPayload.pagination?.hasMore === "boolean", "coins response should include pagination state");
 
 const statsPayload = await checkJson("/api/coins/stats", "coin stats");
 assert(Number.isInteger(statsPayload.stats?.totalLaunches), "coin stats should include totalLaunches");
@@ -40,6 +41,16 @@ if (requireCoin) {
   const first = coinsPayload.coins[0];
   assert(first.contractAddress, "first coin should include a contract address");
   assert(first.profileImageUrl && first.bannerImageUrl, "first coin should include stored images");
+
+  const firstPage = await checkJson("/api/coins?limit=1", "coin feed first page");
+  assert(firstPage.coins?.length === 1, "coin feed first page should honor limit=1");
+  if (firstPage.pagination?.hasMore) {
+    assert(firstPage.pagination.nextCursor, "paginated feed should include nextCursor when more rows exist");
+    const secondPage = await checkJson(`/api/coins?limit=1&cursor=${encodeURIComponent(firstPage.pagination.nextCursor)}`, "coin feed second page");
+    assert(secondPage.coins?.length >= 1, "coin feed cursor should return another page");
+    assert(secondPage.coins[0].id !== firstPage.coins[0].id, "coin feed cursor should not repeat the first page row");
+  }
+  await checkStatus("/api/coins?cursor=not-a-cursor", 400, "invalid coin feed cursor");
 
   const searchPayload = await checkJson(`/api/coins?query=${encodeURIComponent(first.ticker)}`, "coin search");
   assert(searchPayload.filters?.query === first.ticker, "coin search should echo the query filter");
@@ -243,6 +254,15 @@ async function checkUnauthorized(path, name) {
   });
   const text = await response.text();
   assert(response.status === 401, `${path} should return 401 when logged out, got ${response.status}: ${text}`);
+  checks.push({ name, status: response.status });
+}
+
+async function checkStatus(path, expectedStatus, name) {
+  const response = await fetch(`${baseUrl}${path}`, {
+    headers: withCookies({ "x-forwarded-for": syntheticIp })
+  });
+  const text = await response.text();
+  assert(response.status === expectedStatus, `${path} should return ${expectedStatus}, got ${response.status}: ${text}`);
   checks.push({ name, status: response.status });
 }
 

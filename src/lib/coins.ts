@@ -44,13 +44,20 @@ type StatsRow = {
   dexscreener_pair: Record<string, unknown> | null;
 };
 
+export type CoinFeedCursor = {
+  updatedAt: string;
+  id: string;
+};
+
 const launchProofVersion = "snaphood.launch-proof.v1";
 
 export async function listLaunchedCoins(
   limit = 30,
-  options: { chainId?: number; query?: string; tradableOnly?: boolean } = {}
+  options: { chainId?: number; query?: string; tradableOnly?: boolean; cursor?: CoinFeedCursor } = {}
 ) {
   const search = normalizeSearch(options.query);
+  const cursorUpdatedAt = options.cursor?.updatedAt ? new Date(options.cursor.updatedAt) : null;
+  const cursorId = options.cursor?.id ?? null;
   const result = await query<CoinRow>(
     `
       select d.id,
@@ -93,10 +100,14 @@ export async function listLaunchedCoins(
           or t.pool_address is not null
           or t.dexscreener_url is not null
         )
-      order by d.updated_at desc
+        and (
+          $5::timestamptz is null
+          or (d.updated_at, d.id) < ($5::timestamptz, $6::text)
+        )
+      order by d.updated_at desc, d.id desc
       limit $1
     `,
-    [limit, options.chainId ?? null, search, options.tradableOnly ?? false]
+    [limit, options.chainId ?? null, search, options.tradableOnly ?? false, cursorUpdatedAt, cursorId]
   );
 
   return result.rows.map(mapCoinRow);

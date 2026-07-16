@@ -103,6 +103,11 @@ function isTradable(coin: LaunchedCoin) {
   return Boolean(coin.dexscreenerUrl || coin.poolAddress);
 }
 
+function mergeCoins(current: LaunchedCoin[], incoming: LaunchedCoin[]) {
+  const seen = new Set(current.map((coin) => coin.id));
+  return [...current, ...incoming.filter((coin) => !seen.has(coin.id))];
+}
+
 export default function SnapHoodApp() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [health, setHealth] = useState<Health | null>(null);
@@ -117,6 +122,8 @@ export default function SnapHoodApp() {
   const [userDrafts, setUserDrafts] = useState<TokenDraft[]>([]);
   const [coins, setCoins] = useState<LaunchedCoin[]>([]);
   const [stats, setStats] = useState<LaunchpadStats | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [feedHasMore, setFeedHasMore] = useState(false);
   const [search, setSearch] = useState("");
   const [feedTab, setFeedTab] = useState<"movers" | "new" | "tradable">("movers");
   const [form, setForm] = useState({
@@ -230,17 +237,30 @@ export default function SnapHoodApp() {
     setUser(data.user);
   }
 
-  async function refreshCoins(filters: { query?: string; tradableOnly?: boolean } = {}) {
+  async function refreshCoins(
+    filters: { query?: string; tradableOnly?: boolean; cursor?: string | null; append?: boolean } = {}
+  ) {
     try {
       const params = new URLSearchParams();
       const query = filters.query?.trim();
       if (query) params.set("query", query);
       if (filters.tradableOnly) params.set("tradable", "true");
+      if (filters.cursor) params.set("cursor", filters.cursor);
       const response = await fetch(`/api/coins${params.size ? `?${params}` : ""}`);
-      const data = (await response.json()) as { coins?: LaunchedCoin[] };
-      setCoins(data.coins ?? []);
+      const data = (await response.json()) as {
+        coins?: LaunchedCoin[];
+        pagination?: { hasMore?: boolean; nextCursor?: string | null };
+      };
+      const nextCoins = data.coins ?? [];
+      setCoins((current) => (filters.append ? mergeCoins(current, nextCoins) : nextCoins));
+      setNextCursor(data.pagination?.nextCursor ?? null);
+      setFeedHasMore(Boolean(data.pagination?.hasMore));
     } catch {
-      setCoins([]);
+      if (!filters.append) {
+        setCoins([]);
+      }
+      setNextCursor(null);
+      setFeedHasMore(false);
     }
   }
 
@@ -390,6 +410,16 @@ export default function SnapHoodApp() {
     setSelectedImage(nextDraft.originalImageUrl);
     setReceipt(null);
     setError("");
+  }
+
+  function loadMoreCoins() {
+    if (!nextCursor) return;
+    void refreshCoins({
+      query: search,
+      tradableOnly: feedTab === "tradable",
+      cursor: nextCursor,
+      append: true
+    });
   }
 
   return (
@@ -545,56 +575,64 @@ export default function SnapHoodApp() {
               </div>
 
               {visibleCoins.length > 0 ? (
-                <div className="coin-feed">
-                  {visibleCoins.map((coin) => (
-                    <article className="feed-card" key={coin.id}>
-                      {(() => {
-                        const pair = getPair(coin);
-                        return (
-                          <>
-                            <img className="feed-card-image" src={coin.profileImageUrl} alt="" />
-                            <div className="feed-card-main">
-                              <div className="feed-card-title">
-                                <h3>{coin.name}</h3>
-                                <span>${coin.ticker}</span>
+                <>
+                  <div className="coin-feed">
+                    {visibleCoins.map((coin) => (
+                      <article className="feed-card" key={coin.id}>
+                        {(() => {
+                          const pair = getPair(coin);
+                          return (
+                            <>
+                              <img className="feed-card-image" src={coin.profileImageUrl} alt="" />
+                              <div className="feed-card-main">
+                                <div className="feed-card-title">
+                                  <h3>{coin.name}</h3>
+                                  <span>${coin.ticker}</span>
+                                </div>
+                                <p>{coin.description}</p>
+                                <div className="coin-meta">
+                                  <span>MC {compactUsd(pair?.marketCap ?? pair?.fdv)}</span>
+                                  <span>Liq {compactUsd(pair?.liquidity?.usd)}</span>
+                                  <span>Vol {compactUsd(pair?.volume?.h24)}</span>
+                                </div>
+                                <div className="coin-meta">
+                                  <span>{isTradable(coin) ? "tradable" : "deployed"}</span>
+                                  <span>chain {coin.chainId}</span>
+                                  <span>{new Date(coin.updatedAt).toLocaleDateString()}</span>
+                                </div>
                               </div>
-                              <p>{coin.description}</p>
-                              <div className="coin-meta">
-                                <span>MC {compactUsd(pair?.marketCap ?? pair?.fdv)}</span>
-                                <span>Liq {compactUsd(pair?.liquidity?.usd)}</span>
-                                <span>Vol {compactUsd(pair?.volume?.h24)}</span>
-                              </div>
-                              <div className="coin-meta">
-                                <span>{isTradable(coin) ? "tradable" : "deployed"}</span>
-                                <span>chain {coin.chainId}</span>
-                                <span>{new Date(coin.updatedAt).toLocaleDateString()}</span>
-                              </div>
-                            </div>
-                          </>
-                        );
-                      })()}
-                      <div className="feed-card-actions">
-                        <a className="btn ghost small" href={`/coin/${coin.contractAddress}`}>
-                          Details
-                        </a>
-                        <a className="btn ghost small" href={coin.explorerUrl} target="_blank" rel="noreferrer">
-                          <ExternalLink size={14} />
-                          Contract
-                        </a>
-                        {coin.txUrl ? (
-                          <a className="btn ghost small" href={coin.txUrl} target="_blank" rel="noreferrer">
-                            Tx
+                            </>
+                          );
+                        })()}
+                        <div className="feed-card-actions">
+                          <a className="btn ghost small" href={`/coin/${coin.contractAddress}`}>
+                            Details
                           </a>
-                        ) : null}
-                        {coin.dexscreenerUrl ? (
-                          <a className="btn primary small" href={coin.dexscreenerUrl} target="_blank" rel="noreferrer">
-                            Chart
+                          <a className="btn ghost small" href={coin.explorerUrl} target="_blank" rel="noreferrer">
+                            <ExternalLink size={14} />
+                            Contract
                           </a>
-                        ) : null}
-                      </div>
-                    </article>
-                  ))}
-                </div>
+                          {coin.txUrl ? (
+                            <a className="btn ghost small" href={coin.txUrl} target="_blank" rel="noreferrer">
+                              Tx
+                            </a>
+                          ) : null}
+                          {coin.dexscreenerUrl ? (
+                            <a className="btn primary small" href={coin.dexscreenerUrl} target="_blank" rel="noreferrer">
+                              Chart
+                            </a>
+                          ) : null}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                  {feedHasMore && nextCursor ? (
+                    <button className="btn ghost feed-more" onClick={loadMoreCoins} type="button">
+                      <RefreshCw size={15} />
+                      Load more
+                    </button>
+                  ) : null}
+                </>
               ) : (
                 <div className="empty-launchpad">
                   <Rocket size={22} />
