@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Activity, Check, ExternalLink, Rocket, Sparkles, Wallet } from "lucide-react";
 import {
   createPublicClient,
@@ -127,6 +128,7 @@ const liquidityPresets = [
 ];
 
 export function CreatorTradingPanel({ contractAddress, ticker, chainId, explorerUrl }: CreatorTradingPanelProps) {
+  const router = useRouter();
   const [walletAddress, setWalletAddress] = useState("");
   const [tokenAmount, setTokenAmount] = useState("1000000");
   const [ethAmount, setEthAmount] = useState("0.0001");
@@ -280,6 +282,9 @@ export function CreatorTradingPanel({ contractAddress, ticker, chainId, explorer
       if (!response.ok || !data.result) throw new Error(data.error || "Could not record trading metadata.");
       setResult(data.result);
       setMessage("Trading is on! Your live chart usually appears within a few minutes.");
+      // Reflect the new pool across the page (stats, status, chart panel) without a manual
+      // reload — brief pause so the "live to trade" celebration registers first.
+      window.setTimeout(() => router.refresh(), 1600);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not complete trading setup.");
     } finally {

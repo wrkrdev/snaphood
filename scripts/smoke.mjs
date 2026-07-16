@@ -96,13 +96,17 @@ if (requireCoin) {
   assert(proof.proof.events.some((event) => event.eventType === "launch.completed"), "launch proof should include launch.completed event");
   assert(proof.proof.guardrails?.acknowledgements, "launch proof should include persisted guardrail acknowledgements");
   assert(proof.proof.events.some((event) => event.eventType === "trading.liquidity_seeded"), "launch proof should include liquidity event");
-  assert(proof.proof.events.some((event) => event.eventType === "trading.indexer_swap"), "launch proof should include indexer swap event");
+  // Indexer swaps are an optional admin action; user-wallet launches open trading without one.
+  if (detail.coin?.swapTxHash) {
+    assert(proof.proof.events.some((event) => event.eventType === "trading.indexer_swap"), "swapped launch proof should include indexer swap event");
+  }
   assert(Array.isArray(proof.proof?.timeline), "launch proof should include a timeline");
   assert(proof.proof.timeline.some((item) => item.label === "Token deployed" && item.status === "complete"), "launch proof should include completed deployment");
   const dexTimeline = proof.proof.timeline.find((item) => item.label === "Dexscreener synced");
   assert(dexTimeline, "launch proof should include Dexscreener timeline state");
+  // The chart can be recorded by the background cron (no event) or the in-app sync (event);
+  // the timeline status is the source of truth for whether it is live.
   if (detail.coin?.dexscreenerPair) {
-    assert(proof.proof.events.some((event) => event.eventType === "trading.dexscreener_synced"), "indexed launch proof should include Dexscreener sync event");
     assert(dexTimeline.status === "complete", "indexed launch proof should show Dexscreener complete");
   } else {
     assert(dexTimeline.status === "pending", "unindexed launch proof should keep Dexscreener pending");

@@ -206,6 +206,7 @@ export default function SnapHoodApp() {
     liveAdminControlled: false
   });
   const [receipt, setReceipt] = useState<LaunchReceipt | null>(null);
+  const [launchStage, setLaunchStage] = useState("");
 
   useEffect(() => {
     void refreshSession();
@@ -577,6 +578,7 @@ export default function SnapHoodApp() {
         chain,
         transport: http(launchPlan.chain.rpcUrl)
       });
+      setLaunchStage("Waiting for your wallet…");
       const hash = await walletClient.deployContract({
         account: creatorWallet as Hex,
         abi: SnapHoodToken.abi as Abi,
@@ -590,23 +592,20 @@ export default function SnapHoodApp() {
         ]
       });
 
-      const receiptResult = await publicClient.waitForTransactionReceipt({ hash });
-      if (!receiptResult.contractAddress) throw new Error("Wallet transaction did not create a token contract.");
+      setLaunchStage(`Deploying $${form.ticker || draft.ticker} on-chain…`);
+      let deployedContract: string | undefined;
+      try {
+        const receiptResult = await publicClient.waitForTransactionReceipt({ hash, timeout: 90_000, pollingInterval: 2500 });
+        deployedContract = receiptResult.contractAddress ?? undefined;
+      } catch {
+        // Browser RPCs can be slow to surface the receipt; the server re-verifies from the
+        // tx hash below, so a slow confirmation never leaves the launch stuck.
+      }
 
-      const completeResponse = await fetch("/api/launch/complete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...launchBody,
-          txHash: hash,
-          contractAddress: receiptResult.contractAddress
-        })
-      });
-      const completed = (await completeResponse.json()) as { launch?: LaunchReceipt; error?: string };
-      if (!completeResponse.ok) throw new Error(completed.error || "Could not verify wallet launch.");
-      if (!completed.launch) throw new Error("Launch receipt was not returned.");
+      setLaunchStage("Saving your launch proof…");
+      const launched = await finishWalletLaunch(launchBody, hash, deployedContract);
 
-      setReceipt(completed.launch);
+      setReceipt(launched);
       void refreshCoins({
         query: search,
         tradableOnly: feedTab === "tradable"
@@ -617,7 +616,33 @@ export default function SnapHoodApp() {
       setError(caught instanceof Error ? caught.message : "Could not launch token from wallet.");
     } finally {
       setBusy(null);
+      setLaunchStage("");
     }
+  }
+
+  // Record the launch server-side, retrying while the chain finishes confirming so a slow
+  // block never leaves the UI stuck after the token has actually deployed.
+  async function finishWalletLaunch(
+    launchBody: Record<string, unknown>,
+    txHash: string,
+    contractAddress: string | undefined
+  ): Promise<LaunchReceipt> {
+    let lastError = "Could not verify wallet launch.";
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      const response = await fetch("/api/launch/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...launchBody, txHash, contractAddress })
+      });
+      const data = (await response.json()) as { launch?: LaunchReceipt; error?: string };
+      if (response.ok && data.launch) {
+        return data.launch;
+      }
+      lastError = data.error || lastError;
+      setLaunchStage("Confirming on Robinhood Chain…");
+      await new Promise((resolve) => window.setTimeout(resolve, 5000));
+    }
+    throw new Error(lastError);
   }
 
   async function switchWalletChain(chain: LaunchPlan["chain"]) {
@@ -1310,7 +1335,12 @@ export default function SnapHoodApp() {
                             : "Launch demo"}
                     </button>
 
-                    {allocationTotal !== 100 ? (
+                    {busy === "launch" && launchStage ? (
+                      <p className="launch-stage" aria-live="polite">
+                        <span className="launch-stage-dot" />
+                        {launchStage}
+                      </p>
+                    ) : allocationTotal !== 100 ? (
                       <p className="cta-hint">Balance the token split to 100% to launch.</p>
                     ) : !acknowledgementsAccepted ? (
                       <p className="cta-hint">Agree to the launch terms to continue.</p>
