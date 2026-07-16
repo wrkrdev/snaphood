@@ -101,6 +101,9 @@ Security headers are configured in `next.config.ts` and verified by `npm run ver
 `X-Powered-By`, blocks framing and plugin content, keeps referrers scoped, restricts browser permissions, and allows
 camera access only for the local SnapHood capture workflow.
 
+State-changing API routes also reject mismatched browser `Origin` or `Referer` headers. This keeps same-origin app requests
+and CLI smoke tests working while blocking cross-site form/fetch attempts against authenticated sessions.
+
 ## Launch Modes
 
 `TOKEN_LAUNCH_MODE=demo` is the default. It creates a realistic launch receipt without broadcasting a transaction.

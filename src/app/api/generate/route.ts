@@ -3,12 +3,16 @@ import { getCurrentUser } from "@/lib/auth";
 import { generateBrandImages, generateDraftFromImage } from "@/lib/ai";
 import { query } from "@/lib/db";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { rejectCrossOrigin } from "@/lib/request-guards";
 import { saveRemoteImage, saveUpload } from "@/lib/storage";
 import type { TokenDraft } from "@/lib/types";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
+  const blocked = rejectCrossOrigin(request);
+  if (blocked) return blocked;
+
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: "Sign in before generating a token." }, { status: 401 });

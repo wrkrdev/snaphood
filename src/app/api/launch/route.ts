@@ -5,6 +5,7 @@ import { query } from "@/lib/db";
 import { env, isAdminEmail } from "@/lib/env";
 import { launchToken } from "@/lib/launch";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { rejectCrossOrigin } from "@/lib/request-guards";
 
 export const runtime = "nodejs";
 
@@ -47,6 +48,9 @@ type DraftLaunchState = {
 };
 
 export async function POST(request: Request) {
+  const blocked = rejectCrossOrigin(request);
+  if (blocked) return blocked;
+
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: "Sign in before launching." }, { status: 401 });

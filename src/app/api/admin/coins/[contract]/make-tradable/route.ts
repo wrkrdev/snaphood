@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireAdmin } from "@/lib/admin";
 import { getAdminCoin, recordLaunchEvent, recordLiquidity } from "@/lib/admin-coins";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { rejectCrossOrigin } from "@/lib/request-guards";
 import { planOrSeedLiquidity } from "@/lib/trading";
 
 export const runtime = "nodejs";
@@ -14,6 +15,9 @@ const schema = z.object({
 });
 
 export async function POST(request: Request, { params }: { params: Promise<{ contract: string }> }) {
+  const blocked = rejectCrossOrigin(request);
+  if (blocked) return blocked;
+
   const admin = await requireAdmin();
   if ("response" in admin) return admin.response;
 

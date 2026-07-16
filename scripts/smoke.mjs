@@ -9,6 +9,7 @@ let signedIn = false;
 
 await checkPage("/", "SnapHood");
 await checkSecurityHeaders("/");
+await checkOriginGuard();
 await checkPage("/stack", "Wrkr proof");
 await checkPage("/robots.txt", "Sitemap:");
 
@@ -148,6 +149,20 @@ async function checkSecurityHeaders(path) {
   assert(csp.includes("frame-ancestors 'none'"), "CSP should block framing");
   assert(csp.includes("object-src 'none'"), "CSP should block plugins");
   checks.push({ name: "security headers", status: response.status });
+}
+
+async function checkOriginGuard() {
+  const response = await fetch(`${baseUrl}/api/auth/start`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      origin: "https://attacker.invalid",
+      "x-forwarded-for": syntheticIp
+    },
+    body: JSON.stringify({ email: `origin-guard-${Date.now()}@snaphood.local` })
+  });
+  assert(response.status === 403, `cross-origin mutating request should be rejected, got ${response.status}`);
+  checks.push({ name: "origin guard", status: response.status });
 }
 
 async function checkJson(path, name) {

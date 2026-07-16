@@ -3,12 +3,16 @@ import { z } from "zod";
 import { createMagicLink, createSession, sendMagicLink } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { rejectCrossOrigin } from "@/lib/request-guards";
 
 const schema = z.object({
   email: z.string().email()
 });
 
 export async function POST(request: Request) {
+  const blocked = rejectCrossOrigin(request);
+  if (blocked) return blocked;
+
   const limited = await applyRateLimit(request, {
     name: "auth:start:ip",
     limit: 12,

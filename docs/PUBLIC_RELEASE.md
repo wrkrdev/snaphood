@@ -9,6 +9,7 @@ Before making SnapHood public:
 - Run `npm run verify:readiness -- --profile=public` and resolve every failure.
 - Run `npm run db:migrate && npm run db:seed` on the deployment database.
 - Verify response security headers through `npm run verify:smoke`.
+- Verify cross-origin mutation protection through `npm run verify:smoke`.
 - Disable demo auth and verify Wrkr magic-link email delivery.
 - Verify Redis-backed rate limits are active for auth, generation, launch, and admin trading endpoints.
 - Enable Wrkr storage with public asset URLs for uploaded and generated coin media.
