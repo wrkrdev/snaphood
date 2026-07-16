@@ -44,6 +44,21 @@ npm run dev -- --hostname 0.0.0.0
 
 Open `http://localhost:3000`.
 
+## Verification
+
+With the app running locally, verify the full demo surface:
+
+```bash
+npm run db:migrate
+npm run build
+npm audit --audit-level=high
+npm run verify:smoke
+```
+
+`verify:smoke` checks `/`, `/stack`, `/api/health`, launched coin feed/detail APIs, a shareable coin page,
+demo or magic-link auth behavior, and unauthenticated admin-route protection. It defaults to
+`http://localhost:3000`; override with `SNAPHOOD_SMOKE_BASE_URL`.
+
 ## Launch Modes
 
 `TOKEN_LAUNCH_MODE=demo` is the default. It creates a realistic launch receipt without broadcasting a transaction.
