@@ -30,6 +30,8 @@ if (requireCoin) {
 
   const proof = await checkJson(`/api/coins/${first.contractAddress}/proof`, "launch proof");
   assert(proof.proof?.contractAddress?.toLowerCase() === first.contractAddress.toLowerCase(), "launch proof should match feed contract");
+  assert(Array.isArray(proof.proof?.events), "launch proof should expose event history");
+  assert(proof.proof.events.some((event) => event.eventType === "launch.completed"), "launch proof should include launch.completed event");
   assert(Array.isArray(proof.proof?.timeline), "launch proof should include a timeline");
   assert(proof.proof.timeline.some((item) => item.label === "Token deployed" && item.status === "complete"), "launch proof should include completed deployment");
 

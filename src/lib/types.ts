@@ -83,6 +83,11 @@ export type LaunchProof = {
   coinId: string;
   contractAddress: string;
   chainId: number;
+  events: Array<{
+    eventType: string;
+    createdAt: string;
+    payload: Record<string, unknown>;
+  }>;
   launchEvent?: {
     eventType: string;
     createdAt: string;

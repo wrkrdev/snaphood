@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/admin";
-import { getAdminCoin, recordIndexerSwap } from "@/lib/admin-coins";
+import { getAdminCoin, recordIndexerSwap, recordLaunchEvent } from "@/lib/admin-coins";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { planOrRunIndexerSwap } from "@/lib/trading";
 
@@ -54,6 +54,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ con
         wethAddress: result.weth,
         feeTier: result.fee,
         swapTxHash: result.swapTxHash
+      });
+
+      await recordLaunchEvent({
+        draftId: coin.id,
+        eventType: "trading.indexer_swap",
+        payload: {
+          adminUserId: admin.user.id,
+          contractAddress: coin.contractAddress,
+          wethAddress: result.weth,
+          feeTier: result.fee,
+          swapEthAmount: result.swapEthAmount,
+          swapTxHash: result.swapTxHash,
+          executed: result.executed
+        }
       });
     }
 

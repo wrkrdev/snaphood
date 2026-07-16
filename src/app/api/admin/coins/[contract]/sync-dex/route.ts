@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin";
-import { getAdminCoin, recordDexscreener } from "@/lib/admin-coins";
+import { getAdminCoin, recordDexscreener, recordLaunchEvent } from "@/lib/admin-coins";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { fetchDexscreenerPair } from "@/lib/trading";
 
@@ -34,6 +34,17 @@ export async function POST(_request: Request, { params }: { params: Promise<{ co
       draftId: coin.id,
       dexscreenerUrl: result.dexscreenerUrl,
       pair: result.pair
+    });
+    await recordLaunchEvent({
+      draftId: coin.id,
+      eventType: "trading.dexscreener_synced",
+      payload: {
+        adminUserId: admin.user.id,
+        contractAddress: coin.contractAddress,
+        poolAddress: coin.poolAddress,
+        dexscreenerUrl: result.dexscreenerUrl,
+        hasPair: Boolean(result.pair)
+      }
     });
 
     return NextResponse.json({ result });

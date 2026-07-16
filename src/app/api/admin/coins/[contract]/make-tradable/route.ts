@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/admin";
-import { getAdminCoin, recordLiquidity } from "@/lib/admin-coins";
+import { getAdminCoin, recordLaunchEvent, recordLiquidity } from "@/lib/admin-coins";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { planOrSeedLiquidity } from "@/lib/trading";
 
@@ -61,6 +61,24 @@ export async function POST(request: Request, { params }: { params: Promise<{ con
         liquidityEthAmount: result.ethAmount,
         liquidityTxHash: result.liquidityTxHash
       });
+
+      if (parsed.data.execute && result.liquidityTxHash) {
+        await recordLaunchEvent({
+          draftId: coin.id,
+          eventType: "trading.liquidity_seeded",
+          payload: {
+            adminUserId: admin.user.id,
+            contractAddress: coin.contractAddress,
+            poolAddress: result.poolAddress,
+            positionId: result.positionId,
+            feeTier: result.fee,
+            tokenAmount: result.tokenAmount,
+            ethAmount: result.ethAmount,
+            liquidityTxHash: result.liquidityTxHash,
+            executed: result.executed
+          }
+        });
+      }
     }
 
     return NextResponse.json({ result });

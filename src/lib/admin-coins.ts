@@ -164,3 +164,14 @@ export async function recordDexscreener(input: {
     [input.draftId, input.dexscreenerUrl, input.pair ? JSON.stringify(input.pair) : null]
   );
 }
+
+export async function recordLaunchEvent(input: {
+  draftId: string;
+  eventType: string;
+  payload: Record<string, unknown>;
+}) {
+  await query(
+    "insert into snaphood_launch_events (id, draft_id, event_type, payload) values ($1, $2, $3, $4)",
+    [crypto.randomUUID(), input.draftId, input.eventType, JSON.stringify(input.payload)]
+  );
+}

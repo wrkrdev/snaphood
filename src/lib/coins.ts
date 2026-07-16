@@ -129,7 +129,15 @@ export async function getLaunchProof(contractOrId: string): Promise<LaunchProof 
     `,
     [coin.id]
   );
+  const normalizedEvents = events.rows.map((event) => ({
+    eventType: event.event_type,
+    createdAt: event.created_at.toISOString(),
+    payload: event.payload
+  }));
   const launchEventRow = [...events.rows].reverse().find((event) => event.event_type === "launch.completed");
+  const liquidityEvent = latestEvent(normalizedEvents, "trading.liquidity_seeded");
+  const swapEvent = latestEvent(normalizedEvents, "trading.indexer_swap");
+  const dexEvent = latestEvent(normalizedEvents, "trading.dexscreener_synced");
   const launchEvent = launchEventRow
     ? {
         eventType: launchEventRow.event_type,
@@ -176,7 +184,10 @@ export async function getLaunchProof(contractOrId: string): Promise<LaunchProof 
       ? {
           label: "Liquidity seeded",
           status: "complete" as const,
-          detail: `${coin.liquidityTokenAmount ?? "token"} tokens + ${coin.liquidityEthAmount ?? "ETH"} WETH side`,
+          timestamp: liquidityEvent?.createdAt,
+          detail: eventString(liquidityEvent?.payload.tokenAmount) && eventString(liquidityEvent?.payload.ethAmount)
+            ? `${eventString(liquidityEvent?.payload.tokenAmount)} tokens + ${eventString(liquidityEvent?.payload.ethAmount)} WETH side`
+            : `${coin.liquidityTokenAmount ?? "token"} tokens + ${coin.liquidityEthAmount ?? "ETH"} WETH side`,
           txHash: coin.liquidityTxHash,
           url: txBase ? `${txBase}/${coin.liquidityTxHash}` : undefined
         }
@@ -189,7 +200,10 @@ export async function getLaunchProof(contractOrId: string): Promise<LaunchProof 
       ? {
           label: "Indexer swap",
           status: "complete" as const,
-          detail: "Tiny swap used to help indexers discover the pool",
+          timestamp: swapEvent?.createdAt,
+          detail: eventString(swapEvent?.payload.swapEthAmount)
+            ? `Tiny ${eventString(swapEvent?.payload.swapEthAmount)} WETH swap used to help indexers discover the pool`
+            : "Tiny swap used to help indexers discover the pool",
           txHash: coin.swapTxHash,
           url: txBase ? `${txBase}/${coin.swapTxHash}` : undefined
         }
@@ -202,7 +216,7 @@ export async function getLaunchProof(contractOrId: string): Promise<LaunchProof 
       ? {
           label: "Dexscreener synced",
           status: "complete" as const,
-          timestamp: coin.dexscreenerSyncedAt,
+          timestamp: dexEvent?.createdAt ?? coin.dexscreenerSyncedAt,
           detail: "Cached pair payload available",
           url: coin.dexscreenerUrl
         }
@@ -217,6 +231,7 @@ export async function getLaunchProof(contractOrId: string): Promise<LaunchProof 
     coinId: coin.id,
     contractAddress: coin.contractAddress,
     chainId: coin.chainId,
+    events: normalizedEvents,
     launchEvent,
     guardrails,
     timeline
@@ -256,6 +271,17 @@ export function mapCoinRow(row: CoinRow): LaunchedCoin {
     dexscreenerPair,
     dexscreenerSyncedAt: row.dexscreener_synced_at?.toISOString()
   };
+}
+
+function latestEvent(
+  events: Array<{ eventType: string; createdAt: string; payload: Record<string, unknown> }>,
+  eventType: string
+) {
+  return [...events].reverse().find((event) => event.eventType === eventType);
+}
+
+function eventString(value: unknown) {
+  return typeof value === "string" && value.trim() ? value : undefined;
 }
 
 function readGuardrails(payload: Record<string, unknown> | undefined): LaunchProof["guardrails"] | undefined {
