@@ -164,6 +164,12 @@ function isTradable(coin: LaunchedCoin) {
   return Boolean(coin.dexscreenerUrl || coin.poolAddress);
 }
 
+// The chart is only "live" once Dexscreener has returned pair data. A pool (or a bare URL)
+// is not enough — the chart page 404s until the pool is actually indexed.
+function hasChart(coin: LaunchedCoin) {
+  return Boolean(coin.dexscreenerPair);
+}
+
 function mergeCoins(current: LaunchedCoin[], incoming: LaunchedCoin[]) {
   const seen = new Set(current.map((coin) => coin.id));
   return [...current, ...incoming.filter((coin) => !seen.has(coin.id))];
@@ -866,7 +872,7 @@ export default function SnapHoodApp() {
                 <Flame size={18} />
                 <div>
                   <strong>{stats?.tradableLaunches ?? coins.filter(isTradable).length}</strong>
-                  <span>chart live</span>
+                  <span>tradable</span>
                 </div>
               </div>
               <div className="ticker-card">
@@ -901,7 +907,7 @@ export default function SnapHoodApp() {
                         <strong>${coin.ticker}</strong>
                         <span>{coin.name}</span>
                       </div>
-                      <em>{isTradable(coin) ? "live" : "new"}</em>
+                      <em>{hasChart(coin) ? "live" : "new"}</em>
                     </a>
                   ))}
                 </div>
@@ -954,8 +960,8 @@ export default function SnapHoodApp() {
                                   <span>Vol {compactUsd(pair?.volume?.h24)}</span>
                                 </div>
                                 <div className="coin-meta">
-                                  <span className={isTradable(coin) ? "meta-live" : "meta-soft"}>
-                                    {isTradable(coin) ? "Chart live" : "New launch"}
+                                  <span className={hasChart(coin) ? "meta-live" : "meta-soft"}>
+                                    {hasChart(coin) ? "Chart live" : coin.poolAddress ? "Chart soon" : "New launch"}
                                   </span>
                                   <span>{new Date(coin.updatedAt).toLocaleDateString()}</span>
                                 </div>
@@ -976,7 +982,7 @@ export default function SnapHoodApp() {
                               Receipt
                             </a>
                           ) : null}
-                          {coin.dexscreenerUrl ? (
+                          {hasChart(coin) && coin.dexscreenerUrl ? (
                             <a className="btn primary small" href={coin.dexscreenerUrl} target="_blank" rel="noreferrer">
                               Chart
                             </a>

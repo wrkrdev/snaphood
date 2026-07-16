@@ -76,6 +76,9 @@ export default async function CoinPage({ params }: { params: Promise<{ contract:
       }
     | undefined;
   const tokenomics = parseTokenomics(coin.tokenomics);
+  // The chart is "live" only when Dexscreener has actually returned pair data. A recorded
+  // URL alone is not enough — it can 404 until the pool is indexed.
+  const chartLive = Boolean(pair);
 
   return (
     <main className="coin-page">
@@ -92,7 +95,7 @@ export default async function CoinPage({ params }: { params: Promise<{ contract:
           </div>
           <p className="coin-detail-description">{coin.description}</p>
           <div className="coin-detail-actions">
-            {coin.dexscreenerUrl ? (
+            {chartLive && coin.dexscreenerUrl ? (
               <a className="btn primary" href={coin.dexscreenerUrl} target="_blank" rel="noreferrer">
                 <Flame size={16} />
                 Open chart
@@ -130,8 +133,8 @@ export default async function CoinPage({ params }: { params: Promise<{ contract:
         <div className="detail-stat">
           <ShieldCheck size={18} />
           <span>Status</span>
-          <strong className={coin.dexscreenerUrl ? "stat-live" : undefined}>
-            {coin.dexscreenerUrl ? "Chart live" : coin.poolAddress ? "Chart soon" : "Just launched"}
+          <strong className={chartLive ? "stat-live" : undefined}>
+            {chartLive ? "Chart live" : coin.poolAddress ? "Chart soon" : "Just launched"}
           </strong>
         </div>
       </section>
@@ -144,7 +147,7 @@ export default async function CoinPage({ params }: { params: Promise<{ contract:
             chainId={coin.chainId}
             explorerUrl={coin.explorerUrl}
           />
-        ) : !coin.dexscreenerUrl ? (
+        ) : !chartLive ? (
           <DexSyncPanel contractAddress={coin.contractAddress} />
         ) : null}
       </div>

@@ -24,9 +24,10 @@ export function DexSyncPanel({ contractAddress }: DexSyncPanelProps) {
   const pollOnce = useCallback(async () => {
     try {
       const read = await fetch(`/api/coins/${contractAddress}`, { cache: "no-store" });
-      const readData = (await read.json()) as { coin?: { dexscreenerUrl?: string } };
-      if (readData.coin?.dexscreenerUrl) {
-        setUrl(readData.coin.dexscreenerUrl);
+      const readData = (await read.json()) as { coin?: { dexscreenerUrl?: string; dexscreenerPair?: unknown } };
+      // Only treat the chart as live when Dexscreener has actually returned pair data.
+      if (readData.coin?.dexscreenerPair) {
+        setUrl(readData.coin.dexscreenerUrl ?? "");
         return true;
       }
     } catch {

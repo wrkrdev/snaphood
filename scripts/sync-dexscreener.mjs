@@ -36,8 +36,13 @@ async function main() {
 
     const data = await response.json();
     const pair = data.pair ?? data.pairs?.[0] ?? null;
-    const dexscreenerUrl = pair?.url ?? `https://dexscreener.com/robinhood/${row.pool_address.toLowerCase()}`;
+    if (!pair) {
+      // Dexscreener has not indexed this pool yet. Do NOT record a chart URL — a link that
+      // 404s must never make the UI claim the chart is live. Leave it "chart pending".
+      continue;
+    }
 
+    const dexscreenerUrl = pair.url ?? `https://dexscreener.com/robinhood/${row.pool_address.toLowerCase()}`;
     await pool.query(
       `
         update snaphood_token_trading
@@ -47,7 +52,7 @@ async function main() {
             updated_at = now()
         where draft_id = $1
       `,
-      [row.id, dexscreenerUrl, pair ? JSON.stringify(pair) : null]
+      [row.id, dexscreenerUrl, JSON.stringify(pair)]
     );
     console.log(`synced ${row.contract_address} -> ${dexscreenerUrl}`);
   }
