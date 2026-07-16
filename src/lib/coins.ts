@@ -1,7 +1,7 @@
 import { createHash } from "crypto";
 import { query } from "@/lib/db";
 import { env } from "@/lib/env";
-import type { LaunchProof, LaunchedCoin } from "@/lib/types";
+import type { LaunchpadStats, LaunchProof, LaunchedCoin } from "@/lib/types";
 
 type CoinRow = {
   id: string;
@@ -34,6 +34,14 @@ type LaunchEventRow = {
   event_type: string;
   payload: Record<string, unknown>;
   created_at: Date;
+};
+
+type StatsRow = {
+  chain_id: number;
+  updated_at: Date;
+  pool_address: string | null;
+  dexscreener_url: string | null;
+  dexscreener_pair: Record<string, unknown> | null;
 };
 
 const launchProofVersion = "snaphood.launch-proof.v1";
@@ -118,6 +126,60 @@ export async function getLaunchedCoin(contractOrId: string) {
 
   const row = result.rows[0];
   return row ? mapCoinRow(row) : null;
+}
+
+export async function getLaunchpadStats(options: { chainId?: number } = {}): Promise<LaunchpadStats> {
+  const result = await query<StatsRow>(
+    `
+      select d.chain_id,
+             d.updated_at,
+             t.pool_address,
+             t.dexscreener_url,
+             t.dexscreener_pair
+      from snaphood_token_drafts d
+      left join snaphood_token_trading t on t.draft_id = d.id
+      where d.status = 'launched'
+        and d.contract_address is not null
+        and ($1::int is null or d.chain_id = $1)
+    `,
+    [options.chainId ?? null]
+  );
+
+  let latestLaunchAt: Date | undefined;
+  let tradableLaunches = 0;
+  let totalLiquidityUsd = 0;
+  let totalVolume24hUsd = 0;
+  let totalMarketCapUsd = 0;
+  const chains = new Set<number>();
+
+  for (const row of result.rows) {
+    chains.add(row.chain_id);
+    if (!latestLaunchAt || row.updated_at > latestLaunchAt) {
+      latestLaunchAt = row.updated_at;
+    }
+
+    if (row.pool_address || row.dexscreener_url) {
+      tradableLaunches += 1;
+    }
+
+    totalLiquidityUsd += pairNumber(row.dexscreener_pair, ["liquidity", "usd"]);
+    totalVolume24hUsd += pairNumber(row.dexscreener_pair, ["volume", "h24"]);
+    totalMarketCapUsd += pairNumber(row.dexscreener_pair, ["marketCap"]) || pairNumber(row.dexscreener_pair, ["fdv"]);
+  }
+
+  return {
+    totalLaunches: result.rows.length,
+    tradableLaunches,
+    chainCount: chains.size,
+    totalLiquidityUsd,
+    totalVolume24hUsd,
+    totalMarketCapUsd,
+    latestLaunchAt: latestLaunchAt?.toISOString(),
+    generatedAt: new Date().toISOString(),
+    filters: {
+      chainId: options.chainId
+    }
+  };
 }
 
 export async function getLaunchProof(contractOrId: string): Promise<LaunchProof | null> {
@@ -308,6 +370,19 @@ function latestEvent(
 
 function eventString(value: unknown) {
   return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function pairNumber(pair: Record<string, unknown> | null | undefined, path: string[]) {
+  let value: unknown = pair;
+  for (const key of path) {
+    if (!value || typeof value !== "object") {
+      return 0;
+    }
+    value = (value as Record<string, unknown>)[key];
+  }
+
+  const number = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+  return Number.isFinite(number) && number > 0 ? number : 0;
 }
 
 function readGuardrails(payload: Record<string, unknown> | undefined): LaunchProof["guardrails"] | undefined {

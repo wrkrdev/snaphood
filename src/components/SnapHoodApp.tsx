@@ -19,7 +19,7 @@ import {
   Upload,
   WandSparkles
 } from "lucide-react";
-import type { LaunchAcknowledgements, LaunchedCoin, TokenDraft, Tokenomics } from "@/lib/types";
+import type { LaunchAcknowledgements, LaunchedCoin, LaunchpadStats, TokenDraft, Tokenomics } from "@/lib/types";
 
 type User = {
   id: string;
@@ -85,7 +85,7 @@ function getPair(coin: LaunchedCoin) {
 }
 
 function compactUsd(value?: number) {
-  if (!value) return "pending";
+  if (value === undefined || value === null) return "pending";
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
@@ -116,6 +116,7 @@ export default function SnapHoodApp() {
   const [draft, setDraft] = useState<TokenDraft | null>(null);
   const [userDrafts, setUserDrafts] = useState<TokenDraft[]>([]);
   const [coins, setCoins] = useState<LaunchedCoin[]>([]);
+  const [stats, setStats] = useState<LaunchpadStats | null>(null);
   const [search, setSearch] = useState("");
   const [feedTab, setFeedTab] = useState<"movers" | "new" | "tradable">("movers");
   const [form, setForm] = useState({
@@ -136,6 +137,7 @@ export default function SnapHoodApp() {
   useEffect(() => {
     void refreshSession();
     void refreshCoins();
+    void refreshStats();
     const authStatus = new URLSearchParams(window.location.search).get("auth");
     if (authStatus === "verified") {
       setAuthNotice("Signed in with magic link.");
@@ -224,6 +226,16 @@ export default function SnapHoodApp() {
       setCoins(data.coins ?? []);
     } catch {
       setCoins([]);
+    }
+  }
+
+  async function refreshStats() {
+    try {
+      const response = await fetch("/api/coins/stats");
+      const data = (await response.json()) as { stats?: LaunchpadStats };
+      setStats(data.stats ?? null);
+    } catch {
+      setStats(null);
     }
   }
 
@@ -332,6 +344,7 @@ export default function SnapHoodApp() {
       if (!response.ok) throw new Error(data.error || "Could not launch token.");
       setReceipt(data.launch);
       void refreshCoins();
+      void refreshStats();
       void refreshDrafts();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not launch token.");
@@ -406,7 +419,14 @@ export default function SnapHoodApp() {
             />
           </div>
           <div className="nav-actions">
-            <button className="btn ghost small" onClick={() => void refreshCoins()} type="button">
+            <button
+              className="btn ghost small"
+              onClick={() => {
+                void refreshCoins();
+                void refreshStats();
+              }}
+              type="button"
+            >
               <RefreshCw size={14} />
               Refresh
             </button>
@@ -429,29 +449,29 @@ export default function SnapHoodApp() {
               <div className="ticker-card hot">
                 <Trophy size={18} />
                 <div>
-                  <strong>{coins.length}</strong>
+                  <strong>{stats?.totalLaunches ?? coins.length}</strong>
                   <span>launches</span>
                 </div>
               </div>
               <div className="ticker-card">
                 <Flame size={18} />
                 <div>
-                  <strong>{coins.filter(isTradable).length}</strong>
+                  <strong>{stats?.tradableLaunches ?? coins.filter(isTradable).length}</strong>
                   <span>tradable</span>
                 </div>
               </div>
               <div className="ticker-card">
                 <WandSparkles size={18} />
                 <div>
-                  <strong>{health?.readiness.ai ? "live" : "demo"}</strong>
-                  <span>AI</span>
+                  <strong>{compactUsd(stats?.totalLiquidityUsd)}</strong>
+                  <span>liquidity</span>
                 </div>
               </div>
               <div className="ticker-card">
                 <ShieldCheck size={18} />
                 <div>
-                  <strong>{health?.readiness.databaseReachable ? "online" : "offline"}</strong>
-                  <span>Wrkr DB</span>
+                  <strong>{compactUsd(stats?.totalVolume24hUsd)}</strong>
+                  <span>24h vol</span>
                 </div>
               </div>
             </div>

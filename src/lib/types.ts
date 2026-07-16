@@ -72,6 +72,20 @@ export type LaunchedCoin = {
   dexscreenerSyncedAt?: string;
 };
 
+export type LaunchpadStats = {
+  totalLaunches: number;
+  tradableLaunches: number;
+  chainCount: number;
+  totalLiquidityUsd: number;
+  totalVolume24hUsd: number;
+  totalMarketCapUsd: number;
+  latestLaunchAt?: string;
+  generatedAt: string;
+  filters: {
+    chainId?: number;
+  };
+};
+
 export type LaunchProofTimelineItem = {
   label: string;
   status: "complete" | "pending";

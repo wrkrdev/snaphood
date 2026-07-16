@@ -27,11 +27,23 @@ if (health.readiness?.storage) {
 const coinsPayload = await checkJson("/api/coins", "coins");
 assert(Array.isArray(coinsPayload.coins), "coins response should include an array");
 
+const statsPayload = await checkJson("/api/coins/stats", "coin stats");
+assert(Number.isInteger(statsPayload.stats?.totalLaunches), "coin stats should include totalLaunches");
+assert(Number.isInteger(statsPayload.stats?.tradableLaunches), "coin stats should include tradableLaunches");
+assert(Number.isInteger(statsPayload.stats?.chainCount), "coin stats should include chainCount");
+assert(typeof statsPayload.stats?.totalLiquidityUsd === "number", "coin stats should include totalLiquidityUsd");
+assert(typeof statsPayload.stats?.totalVolume24hUsd === "number", "coin stats should include totalVolume24hUsd");
+assert(statsPayload.stats.totalLaunches >= coinsPayload.coins.length, "stats total should cover the current feed page");
+
 if (requireCoin) {
   assert(coinsPayload.coins.length > 0, "expected at least one launched coin");
   const first = coinsPayload.coins[0];
   assert(first.contractAddress, "first coin should include a contract address");
   assert(first.profileImageUrl && first.bannerImageUrl, "first coin should include stored images");
+
+  const chainStatsPayload = await checkJson(`/api/coins/stats?chainId=${first.chainId}`, "chain coin stats");
+  assert(chainStatsPayload.stats?.filters?.chainId === first.chainId, "chain stats should echo the chain filter");
+  assert(chainStatsPayload.stats?.totalLaunches >= 1, "chain stats should include at least the feed coin");
 
   const proofCoin = coinsPayload.coins.find((coin) => coin.dexscreenerUrl || coin.poolAddress) ?? first;
   assert(proofCoin.contractAddress, "proof coin should include a contract address");
