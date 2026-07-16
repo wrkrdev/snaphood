@@ -6,6 +6,6 @@ export async function POST(request: Request) {
   const blocked = rejectCrossOrigin(request);
   if (blocked) return blocked;
 
-  await clearSession();
-  return NextResponse.json({ ok: true });
+  const result = await clearSession();
+  return NextResponse.json({ ok: true, ...result });
 }

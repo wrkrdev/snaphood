@@ -168,6 +168,14 @@ export async function verifyMagicLink(token: string) {
 
 export async function clearSession() {
   const jar = await cookies();
+  const sessionId = unpackSession(jar.get(cookieName)?.value);
+  let revoked = false;
+
+  if (sessionId) {
+    const result = await query("delete from snaphood_sessions where id = $1", [sessionId]);
+    revoked = (result.rowCount ?? 0) > 0;
+  }
+
   jar.set(cookieName, "", {
     httpOnly: true,
     sameSite: "lax",
@@ -175,6 +183,8 @@ export async function clearSession() {
     path: "/",
     expires: new Date(0)
   });
+
+  return { revoked };
 }
 
 export async function getCurrentUser() {

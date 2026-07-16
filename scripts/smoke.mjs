@@ -94,6 +94,15 @@ if (verifyGenerate) {
   assert(Array.isArray(draft?.tokenomics?.allocation), "generated draft should include tokenomics allocation");
 }
 
+if (signedIn) {
+  const logout = await postJson("/api/auth/logout", {});
+  assert(logout.ok === true, "logout should succeed");
+  assert(logout.revoked === true, "logout should revoke the server-side session");
+  const afterLogout = await checkJson("/api/me", "post-logout session");
+  assert(afterLogout.user === null, "logout should clear the browser session");
+  signedIn = false;
+}
+
 async function verifyMagicLink(url) {
   const response = await fetch(url, {
     headers: withCookies({ "x-forwarded-for": syntheticIp }),
