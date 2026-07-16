@@ -52,7 +52,7 @@ if (failures.length > 0) {
 async function checkRequiredEnv() {
   requireOrFail("DATABASE_URL", "Wrkr Postgres is required for users, drafts, launches, and trading metadata.");
   requireOrWarn("REDIS_URL", "Wrkr Redis enables distributed rate limits.");
-  requireOrFail("NEXT_PUBLIC_APP_URL", "Public URL is required for share links, auth links, and metadata.");
+  checkAppUrl();
 
   const sessionSecret = env("SNAPHOOD_SESSION_SECRET");
   if (!sessionSecret || sessionSecret === "snaphood-local-demo-secret") {
@@ -134,6 +134,30 @@ async function checkRequiredEnv() {
     pass("DEPLOYER_PRIVATE_KEY", "Deployer key is present.");
   } else {
     warn("DEPLOYER_PRIVATE_KEY", "No deployer key; demo mode can still run.");
+  }
+}
+
+function checkAppUrl() {
+  const appUrl = env("NEXT_PUBLIC_APP_URL");
+  if (!appUrl) {
+    fail("NEXT_PUBLIC_APP_URL", "Public URL is required for share links, auth links, and metadata.");
+    return;
+  }
+
+  try {
+    const parsed = new URL(appUrl);
+    if (isPublic && parsed.protocol !== "https:") {
+      fail("NEXT_PUBLIC_APP_URL", "Public and live profiles require an HTTPS app URL for magic links and secure cookies.");
+      return;
+    }
+
+    if (parsed.protocol === "https:") {
+      pass("NEXT_PUBLIC_APP_URL", "HTTPS app URL is configured.");
+    } else {
+      pass("NEXT_PUBLIC_APP_URL", "Local app URL is configured.");
+    }
+  } catch {
+    fail("NEXT_PUBLIC_APP_URL", "Set a valid absolute app URL.");
   }
 }
 

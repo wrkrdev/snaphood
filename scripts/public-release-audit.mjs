@@ -111,6 +111,7 @@ async function checkReleaseDocs() {
     "npm run verify:secrets",
     "npm run verify:readiness -- --profile=public",
     "Disable demo auth",
+    "NEXT_PUBLIC_APP_URL",
     "Enable Wrkr storage",
     "dedicated deployer wallet",
     "Avoid Robinhood logos"
