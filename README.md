@@ -334,3 +334,5 @@ FAL_IMAGE_EDIT_MODEL="fal-ai/flux-kontext/dev"
 ## Public Release Notes
 
 Keep the repository private until the checklist in [docs/PUBLIC_RELEASE.md](docs/PUBLIC_RELEASE.md) is complete.
+
+Product direction and next-session UX work are tracked in [docs/CANON.md](docs/CANON.md).
