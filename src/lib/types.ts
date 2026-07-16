@@ -82,6 +82,8 @@ export type LaunchProofTimelineItem = {
 };
 
 export type LaunchProof = {
+  proofVersion: string;
+  proofHash: string;
   coinId: string;
   contractAddress: string;
   chainId: number;

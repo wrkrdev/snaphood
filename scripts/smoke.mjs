@@ -42,6 +42,8 @@ if (requireCoin) {
 
   const proof = await checkJson(`/api/coins/${proofCoin.contractAddress}/proof`, "launch proof");
   assert(proof.proof?.contractAddress?.toLowerCase() === proofCoin.contractAddress.toLowerCase(), "launch proof should match feed contract");
+  assert(/^sha256:[a-f0-9]{64}$/.test(proof.proof?.proofHash ?? ""), "launch proof should include a sha256 fingerprint");
+  assert(proof.proof?.proofVersion === "snaphood.launch-proof.v1", "launch proof should include a version");
   assert(Array.isArray(proof.proof?.events), "launch proof should expose event history");
   assert(proof.proof.events.some((event) => event.eventType === "launch.completed"), "launch proof should include launch.completed event");
   assert(proof.proof.guardrails?.acknowledgements, "launch proof should include persisted guardrail acknowledgements");
@@ -51,6 +53,8 @@ if (requireCoin) {
   assert(Array.isArray(proof.proof?.timeline), "launch proof should include a timeline");
   assert(proof.proof.timeline.some((item) => item.label === "Token deployed" && item.status === "complete"), "launch proof should include completed deployment");
   assert(proof.proof.timeline.every((item) => item.status === "complete"), "seeded launch proof timeline should be complete");
+  const repeatedProof = await checkJson(`/api/coins/${proofCoin.contractAddress}/proof`, "launch proof repeat");
+  assert(repeatedProof.proof?.proofHash === proof.proof.proofHash, "launch proof fingerprint should be stable across reads");
 
   const tradable = proofCoin.dexscreenerUrl || proofCoin.poolAddress ? proofCoin : undefined;
   assert(tradable, "expected at least one tradable coin with pool or Dexscreener metadata");
@@ -61,6 +65,7 @@ if (requireCoin) {
   assert(coinPage.includes('name="twitter:card"'), "coin page should include Twitter card metadata");
   assert(coinPage.includes("Tokenomics"), "coin page should include tokenomics");
   assert(coinPage.includes("Supply"), "coin page should include token supply");
+  assert(coinPage.includes(proof.proof.proofHash), "coin page should render the launch proof fingerprint");
 
   const sitemap = await checkPage("/sitemap.xml", proofCoin.contractAddress);
   assert(sitemap.includes("/stack"), "sitemap should include stack proof page");

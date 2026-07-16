@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import { query } from "@/lib/db";
 import { env } from "@/lib/env";
 import type { LaunchProof, LaunchedCoin } from "@/lib/types";
@@ -34,6 +35,8 @@ type LaunchEventRow = {
   payload: Record<string, unknown>;
   created_at: Date;
 };
+
+const launchProofVersion = "snaphood.launch-proof.v1";
 
 export async function listLaunchedCoins(limit = 30, options: { chainId?: number } = {}) {
   const result = await query<CoinRow>(
@@ -228,7 +231,7 @@ export async function getLaunchProof(contractOrId: string): Promise<LaunchProof 
         }
   ];
 
-  return {
+  const proofBody = {
     coinId: coin.id,
     contractAddress: coin.contractAddress,
     chainId: coin.chainId,
@@ -236,6 +239,12 @@ export async function getLaunchProof(contractOrId: string): Promise<LaunchProof 
     launchEvent,
     guardrails,
     timeline
+  };
+
+  return {
+    proofVersion: launchProofVersion,
+    proofHash: proofHash(proofBody),
+    ...proofBody
   };
 }
 
@@ -316,4 +325,27 @@ function readGuardrails(payload: Record<string, unknown> | undefined): LaunchPro
         ? (value.acknowledgements as Record<string, unknown>)
         : undefined
   };
+}
+
+function proofHash(proofBody: Omit<LaunchProof, "proofVersion" | "proofHash">) {
+  return `sha256:${createHash("sha256")
+    .update(stableStringify({ proofVersion: launchProofVersion, ...proofBody }))
+    .digest("hex")}`;
+}
+
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value);
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify(item)).join(",")}]`;
+  }
+
+  const object = value as Record<string, unknown>;
+  return `{${Object.keys(object)
+    .sort()
+    .filter((key) => object[key] !== undefined)
+    .map((key) => `${JSON.stringify(key)}:${stableStringify(object[key])}`)
+    .join(",")}}`;
 }

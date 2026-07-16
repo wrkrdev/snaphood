@@ -1237,6 +1237,24 @@ h1 {
   overflow-wrap: anywhere;
 }
 
+.coin-ledger .proof-hash {
+  display: grid;
+  gap: 4px;
+}
+
+.coin-ledger .proof-hash code {
+  color: var(--ink);
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.coin-ledger .proof-hash span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 760;
+}
+
 .coin-tokenomics {
   display: grid;
   gap: 16px;

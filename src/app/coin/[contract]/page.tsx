@@ -136,6 +136,15 @@ export default async function CoinPage({ params }: { params: Promise<{ contract:
             <dt>Deploy tx</dt>
             <dd>{coin.txHash}</dd>
           </div>
+          {proof ? (
+            <div>
+              <dt>Proof fingerprint</dt>
+              <dd className="proof-hash">
+                <code>{proof.proofHash}</code>
+                <span>{proof.proofVersion}</span>
+              </dd>
+            </div>
+          ) : null}
           {coin.poolAddress ? (
             <div>
               <dt>Uniswap pool</dt>
