@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { query } from "@/lib/db";
 import { env, isAdminEmail } from "@/lib/env";
 import { launchToken } from "@/lib/launch";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -41,6 +42,14 @@ export async function POST(request: Request) {
       { status: 403 }
     );
   }
+
+  const limited = await applyRateLimit(request, {
+    name: env.launchMode === "demo" ? "launch:demo:user" : "launch:live:admin",
+    limit: env.launchMode === "demo" ? 8 : 3,
+    windowSeconds: 60 * 60,
+    identity: user.id
+  });
+  if (limited) return limited;
 
   const parsed = schema.safeParse(await request.json());
   if (!parsed.success) {

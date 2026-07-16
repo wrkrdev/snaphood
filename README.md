@@ -21,7 +21,7 @@ It is an original launchpad product with a Pump.fun-inspired dense feed and crea
 | Need | Wrkr primitive | Used for |
 | --- | --- | --- |
 | Durable data | `wrkr db` | users, sessions, token drafts, launches, trading metadata, Dexscreener cache |
-| Cache/rate limits | `wrkr cache` | configured for later rate limiting/background jobs |
+| Cache/rate limits | `wrkr cache` | Redis-backed throttles for auth, generation, launch, and admin trading |
 | Uploads/assets | `wrkr storage` | optional object storage for images and generated assets |
 | Email | `wrkr email` | future magic-link auth |
 | Public URL | `wrkr expose` | publish local Next port |
@@ -109,6 +109,18 @@ Admin API routes:
 - `POST /api/admin/coins/<contract>/make-tradable` — estimate or seed Uniswap v3 liquidity.
 - `POST /api/admin/coins/<contract>/index-swap` — estimate or run a tiny WETH-to-token indexer swap.
 - `POST /api/admin/coins/<contract>/sync-dex` — fetch and cache the Dexscreener pair payload.
+
+## Abuse Controls
+
+`src/lib/rate-limit.ts` uses Wrkr Redis when `REDIS_URL` is set and falls back to
+process memory for local development. Current limits:
+
+- auth start: 12 requests per IP per 10 minutes;
+- generation: 10 drafts per user per hour;
+- launch: 8 demo launches per user per hour, or 3 live launches per admin per hour;
+- admin liquidity execution: 2 live executions per admin per hour;
+- admin indexer swap execution: 4 live executions per admin per hour;
+- admin dry-run and Dex sync routes have higher non-spending limits.
 
 Public pages:
 

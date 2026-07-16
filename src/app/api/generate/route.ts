@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { generateBrandImages, generateDraftFromImage } from "@/lib/ai";
 import { query } from "@/lib/db";
+import { applyRateLimit } from "@/lib/rate-limit";
 import { saveRemoteImage, saveUpload } from "@/lib/storage";
 import type { TokenDraft } from "@/lib/types";
 
@@ -12,6 +13,14 @@ export async function POST(request: Request) {
   if (!user) {
     return NextResponse.json({ error: "Sign in before generating a token." }, { status: 401 });
   }
+
+  const limited = await applyRateLimit(request, {
+    name: "generate:user",
+    limit: 10,
+    windowSeconds: 60 * 60,
+    identity: user.id
+  });
+  if (limited) return limited;
 
   const formData = await request.formData();
   const file = formData.get("image");

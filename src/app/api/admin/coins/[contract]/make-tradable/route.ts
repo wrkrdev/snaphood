@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/admin";
 import { getAdminCoin, recordLiquidity } from "@/lib/admin-coins";
+import { applyRateLimit } from "@/lib/rate-limit";
 import { planOrSeedLiquidity } from "@/lib/trading";
 
 export const runtime = "nodejs";
@@ -21,6 +22,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ con
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid trading request." }, { status: 400 });
   }
+
+  const limited = await applyRateLimit(request, {
+    name: parsed.data.execute ? "admin:liquidity:execute" : "admin:liquidity:plan",
+    limit: parsed.data.execute ? 2 : 30,
+    windowSeconds: parsed.data.execute ? 60 * 60 : 10 * 60,
+    identity: admin.user.id
+  });
+  if (limited) return limited;
 
   const coin = await getAdminCoin(contract);
   if (!coin) {

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin";
 import { getAdminCoin, recordDexscreener } from "@/lib/admin-coins";
+import { applyRateLimit } from "@/lib/rate-limit";
 import { fetchDexscreenerPair } from "@/lib/trading";
 
 export const runtime = "nodejs";
@@ -8,6 +9,14 @@ export const runtime = "nodejs";
 export async function POST(_request: Request, { params }: { params: Promise<{ contract: string }> }) {
   const admin = await requireAdmin();
   if ("response" in admin) return admin.response;
+
+  const limited = await applyRateLimit(_request, {
+    name: "admin:dex-sync",
+    limit: 60,
+    windowSeconds: 10 * 60,
+    identity: admin.user.id
+  });
+  if (limited) return limited;
 
   const { contract } = await params;
   const coin = await getAdminCoin(contract);
