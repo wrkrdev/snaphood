@@ -9,6 +9,7 @@ await checkEnvExample();
 await checkReleaseDocs();
 await checkSecurityHeaders();
 await checkAdminExecutionGuardrails();
+await checkAssetVerification();
 await checkContractArtifact();
 
 const failures = checks.filter((check) => check.status === "fail");
@@ -117,6 +118,7 @@ async function checkReleaseDocs() {
     "Rotate any key",
     "npm run verify:secrets",
     "npm run verify:generate",
+    "valid raster image bytes",
     "npm run verify:readiness -- --profile=public",
     "npm run prod:start",
     "npm run prod:ensure",
@@ -175,6 +177,14 @@ async function checkAdminExecutionGuardrails() {
   const panel = await readText("src/components/AdminTradingPanel.tsx");
   includesOrFail(panel, "adminExecutionConfirmation", "AdminTradingPanel", "Admin panel exposes the execution confirmation key.");
   includesOrFail(panel, "!executionConfirmed", "AdminTradingPanel", "Spendful admin buttons require typed confirmation.");
+}
+
+async function checkAssetVerification() {
+  for (const script of ["scripts/smoke.mjs", "scripts/generate-smoke.mjs"]) {
+    const source = await readText(script);
+    includesOrFail(source, "validateImageAsset", script, "Verifier fetches image URLs.");
+    includesOrFail(source, "matchesImageSignature", script, "Verifier checks raster image signatures.");
+  }
 }
 
 async function checkContractArtifact() {

@@ -2,6 +2,7 @@ const baseUrl = (process.env.SNAPHOOD_SMOKE_BASE_URL ?? "http://localhost:3000")
 const requireCoin = process.env.SNAPHOOD_SMOKE_REQUIRE_COIN !== "false";
 const verifyGenerate = process.env.SNAPHOOD_SMOKE_GENERATE === "true";
 const syntheticIp = `198.51.100.${Math.floor(Math.random() * 200) + 1}`;
+const maxImageBytes = 8 * 1024 * 1024;
 
 const checks = [];
 const cookieJar = [];
@@ -44,6 +45,11 @@ if (requireCoin) {
   const first = coinsPayload.coins[0];
   assert(first.contractAddress, "first coin should include a contract address");
   assert(first.profileImageUrl && first.bannerImageUrl, "first coin should include stored images");
+  await validateImageAsset(first.profileImageUrl, "first coin profile");
+  await validateImageAsset(first.bannerImageUrl, "first coin banner");
+  if (first.originalImageUrl) {
+    await validateImageAsset(first.originalImageUrl, "first coin original");
+  }
 
   const firstPage = await checkJson("/api/coins?limit=1", "coin feed first page");
   assert(firstPage.coins?.length === 1, "coin feed first page should honor limit=1");
@@ -152,6 +158,9 @@ if (verifyGenerate) {
     assert(isHttpUrl(draft.profileImageUrl), "storage-backed profile image should use a public URL");
     assert(isHttpUrl(draft.bannerImageUrl), "storage-backed banner image should use a public URL");
   }
+  await validateImageAsset(draft.originalImageUrl, "generated draft original");
+  await validateImageAsset(draft.profileImageUrl, "generated draft profile");
+  await validateImageAsset(draft.bannerImageUrl, "generated draft banner");
   assert(Array.isArray(draft?.tokenomics?.allocation), "generated draft should include tokenomics allocation");
 
   const draftsPayload = await checkJson("/api/me/drafts", "generated draft persistence");
@@ -385,6 +394,56 @@ function tinyPng() {
 
 function isHttpUrl(value) {
   return typeof value === "string" && /^https?:\/\//.test(value);
+}
+
+async function validateImageAsset(value, name) {
+  assert(typeof value === "string" && value.length > 0, `${name} image URL should be present`);
+  const url = new URL(value, `${baseUrl}/`).toString();
+  const response = await fetch(url, {
+    headers: { "x-forwarded-for": syntheticIp }
+  });
+  assert(response.ok, `${name} image should be fetchable, got ${response.status}`);
+  const contentType = normalizeImageType(response.headers.get("content-type") ?? "");
+  assert(["image/png", "image/jpeg", "image/webp", "image/gif"].includes(contentType), `${name} image should be a raster asset, got ${contentType || "<missing>"}`);
+  const contentLength = Number(response.headers.get("content-length") ?? "0");
+  assert(!contentLength || contentLength <= maxImageBytes, `${name} image should be 8 MB or smaller`);
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  assert(bytes.byteLength > 0, `${name} image should not be empty`);
+  assert(bytes.byteLength <= maxImageBytes, `${name} image should be 8 MB or smaller`);
+  assert(matchesImageSignature(contentType, bytes), `${name} image bytes should match ${contentType}`);
+  checks.push({ name: `${name} image asset`, status: response.status });
+}
+
+function normalizeImageType(contentType) {
+  return contentType.split(";")[0]?.trim().toLowerCase() ?? "";
+}
+
+function matchesImageSignature(contentType, bytes) {
+  if (contentType === "image/png") {
+    return startsWith(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  }
+
+  if (contentType === "image/jpeg") {
+    return startsWith(bytes, [0xff, 0xd8, 0xff]);
+  }
+
+  if (contentType === "image/gif") {
+    return ascii(bytes, 0, 6) === "GIF87a" || ascii(bytes, 0, 6) === "GIF89a";
+  }
+
+  if (contentType === "image/webp") {
+    return ascii(bytes, 0, 4) === "RIFF" && ascii(bytes, 8, 12) === "WEBP";
+  }
+
+  return false;
+}
+
+function startsWith(bytes, expected) {
+  return expected.every((byte, index) => bytes[index] === byte);
+}
+
+function ascii(bytes, start, end) {
+  return String.fromCharCode(...bytes.slice(start, end));
 }
 
 function assert(condition, message) {

@@ -110,6 +110,7 @@ npm run verify:generate
 The `SNAPHOOD_SMOKE_GENERATE=true` smoke path uses normal demo or dry-run auth. `verify:generate` creates a temporary
 DB-backed session directly, so it can verify the real `/api/generate` route even when public auth sends Wrkr email links.
 Both paths upload a generated 1x1 PNG and check that `/api/generate` returns persisted draft metadata and image URLs.
+The public smoke paths also fetch profile, banner, and original image URLs and validate raster content type, size, and file signatures.
 They may call configured AI/image providers, so keep them opt-in for low-cost routine checks.
 
 To verify launch idempotency without spending funds, restart the local app with `TOKEN_LAUNCH_MODE=demo`, then run:

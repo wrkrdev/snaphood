@@ -16,6 +16,7 @@ const sessionId = crypto.randomUUID();
 const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
 const cookie = `snaphood_session=${packSession(sessionId)}`;
 const checks = [];
+const maxImageBytes = 8 * 1024 * 1024;
 
 if (!databaseUrl) {
   console.error("DATABASE_URL is required. Run `wrkr db --json` and add it to .env.local.");
@@ -53,6 +54,9 @@ try {
     assert(isHttpUrl(draft.profileImageUrl), "storage-backed profile image should use a public URL");
     assert(isHttpUrl(draft.bannerImageUrl), "storage-backed banner image should use a public URL");
   }
+  await validateImageAsset(draft.originalImageUrl, "generated draft original");
+  await validateImageAsset(draft.profileImageUrl, "generated draft profile");
+  await validateImageAsset(draft.bannerImageUrl, "generated draft banner");
 
   const dbDraft = await pool.query(
     `
@@ -229,6 +233,57 @@ function tinyPng() {
 
 function isHttpUrl(value) {
   return typeof value === "string" && /^https?:\/\//.test(value);
+}
+
+async function validateImageAsset(value, name) {
+  assert(typeof value === "string" && value.length > 0, `${name} image URL should be present`);
+  const url = new URL(value, `${baseUrl}/`).toString();
+  const response = await fetch(url, {
+    headers: { "x-forwarded-for": syntheticIp }
+  });
+  const textPrefix = `${name} image`;
+  assert(response.ok, `${textPrefix} should be fetchable, got ${response.status}`);
+  const contentType = normalizeImageType(response.headers.get("content-type") ?? "");
+  assert(["image/png", "image/jpeg", "image/webp", "image/gif"].includes(contentType), `${textPrefix} should be a raster asset, got ${contentType || "<missing>"}`);
+  const contentLength = Number(response.headers.get("content-length") ?? "0");
+  assert(!contentLength || contentLength <= maxImageBytes, `${textPrefix} should be 8 MB or smaller`);
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  assert(bytes.byteLength > 0, `${textPrefix} should not be empty`);
+  assert(bytes.byteLength <= maxImageBytes, `${textPrefix} should be 8 MB or smaller`);
+  assert(matchesImageSignature(contentType, bytes), `${textPrefix} bytes should match ${contentType}`);
+  checks.push({ name: `${name} image asset`, status: response.status });
+}
+
+function normalizeImageType(contentType) {
+  return contentType.split(";")[0]?.trim().toLowerCase() ?? "";
+}
+
+function matchesImageSignature(contentType, bytes) {
+  if (contentType === "image/png") {
+    return startsWith(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  }
+
+  if (contentType === "image/jpeg") {
+    return startsWith(bytes, [0xff, 0xd8, 0xff]);
+  }
+
+  if (contentType === "image/gif") {
+    return ascii(bytes, 0, 6) === "GIF87a" || ascii(bytes, 0, 6) === "GIF89a";
+  }
+
+  if (contentType === "image/webp") {
+    return ascii(bytes, 0, 4) === "RIFF" && ascii(bytes, 8, 12) === "WEBP";
+  }
+
+  return false;
+}
+
+function startsWith(bytes, expected) {
+  return expected.every((byte, index) => bytes[index] === byte);
+}
+
+function ascii(bytes, start, end) {
+  return String.fromCharCode(...bytes.slice(start, end));
 }
 
 function containsInvestmentPromise(value) {
