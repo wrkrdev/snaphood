@@ -178,6 +178,31 @@ async function checkDatabase() {
     } else {
       pass("database migrations", "All SnapHood tables exist.");
     }
+
+    const indexResult = await pool.query(
+      `
+        select indexname
+        from pg_indexes
+        where schemaname = 'public'
+          and indexname = any($1::text[])
+      `,
+      [
+        [
+          "snaphood_token_drafts_contract_chain_unique",
+          "snaphood_token_trading_contract_chain_unique"
+        ]
+      ]
+    );
+    const foundIndexes = new Set(indexResult.rows.map((row) => row.indexname));
+    const missingIndexes = [
+      "snaphood_token_drafts_contract_chain_unique",
+      "snaphood_token_trading_contract_chain_unique"
+    ].filter((index) => !foundIndexes.has(index));
+    if (missingIndexes.length) {
+      fail("database integrity indexes", `Missing indexes: ${missingIndexes.join(", ")}. Run npm run db:migrate.`);
+    } else {
+      pass("database integrity indexes", "Contract uniqueness indexes exist.");
+    }
   } catch (error) {
     fail("database connection", messageFor(error));
   } finally {

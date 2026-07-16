@@ -63,6 +63,9 @@ async function main() {
     );
 
     create index if not exists snaphood_token_drafts_user_idx on snaphood_token_drafts(user_id, created_at desc);
+    create unique index if not exists snaphood_token_drafts_contract_chain_unique
+      on snaphood_token_drafts(lower(contract_address), chain_id)
+      where contract_address is not null and chain_id is not null;
 
     create table if not exists snaphood_launch_events (
       id text primary key,
@@ -97,6 +100,8 @@ async function main() {
     );
 
     create index if not exists snaphood_token_trading_contract_idx
+      on snaphood_token_trading(lower(contract_address), chain_id);
+    create unique index if not exists snaphood_token_trading_contract_chain_unique
       on snaphood_token_trading(lower(contract_address), chain_id);
     create index if not exists snaphood_token_trading_pool_idx
       on snaphood_token_trading(lower(pool_address));

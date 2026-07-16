@@ -8,6 +8,7 @@ Before making SnapHood public:
 - Run `npm run verify:secrets` before changing repository visibility.
 - Run `npm run verify:readiness -- --profile=public` and resolve every failure.
 - Run `npm run db:migrate && npm run db:seed` on the deployment database.
+- Confirm readiness reports `database integrity indexes` as passing.
 - Verify response security headers through `npm run verify:smoke`.
 - Verify cross-origin mutation protection through `npm run verify:smoke`.
 - Verify unsafe upload rejection through `SNAPHOOD_SMOKE_GENERATE=true npm run verify:smoke`.

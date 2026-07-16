@@ -93,6 +93,7 @@ first receipt instead of creating another token.
 
 `npm run db:seed` is idempotent. It inserts or updates the public SNAPG proof launch, Uniswap v3 pool metadata,
 proof events, and compact Dexscreener cache so a fresh Wrkr database has a tradable coin on the homepage after migration.
+The migration also enforces one launched/trading row per contract address and chain, preventing duplicate public feed entries.
 
 `npm run verify:secrets` scans tracked files for committed API keys, wallet private keys, PEM private keys, non-placeholder
 secret env assignments, and accidentally tracked local uploads or env files. It intentionally ignores public blockchain tx hashes.
