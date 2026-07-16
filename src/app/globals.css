@@ -366,6 +366,98 @@ h1 {
   gap: 14px;
 }
 
+.recent-drafts {
+  display: grid;
+  gap: 8px;
+  border: 1px solid rgba(5, 5, 5, 0.1);
+  border-radius: 8px;
+  background: #fbfdfb;
+  padding: 10px;
+}
+
+.recent-drafts-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.draft-row {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 34px;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid rgba(5, 5, 5, 0.08);
+  border-radius: 8px;
+  background: #fff;
+  padding: 8px;
+}
+
+.draft-row.active {
+  border-color: rgba(0, 200, 5, 0.55);
+  box-shadow: 0 0 0 2px rgba(0, 200, 5, 0.1);
+}
+
+.draft-row img {
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.draft-row-main {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.draft-row-main:disabled {
+  cursor: default;
+}
+
+.draft-row-main strong,
+.draft-row-main span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.draft-row-main strong {
+  font-size: 13px;
+}
+
+.draft-row-main span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.icon-action {
+  display: inline-grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid rgba(5, 5, 5, 0.1);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.icon-action:hover {
+  border-color: rgba(0, 200, 5, 0.4);
+  background: #f4fff4;
+}
+
 .label {
   display: grid;
   gap: 7px;

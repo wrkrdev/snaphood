@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   Camera,
@@ -104,6 +104,7 @@ function isTradable(coin: LaunchedCoin) {
 }
 
 export default function SnapHoodApp() {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [health, setHealth] = useState<Health | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [email, setEmail] = useState("demo@snaphood.fun");
@@ -113,6 +114,7 @@ export default function SnapHoodApp() {
   const [authMagicLink, setAuthMagicLink] = useState("");
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [draft, setDraft] = useState<TokenDraft | null>(null);
+  const [userDrafts, setUserDrafts] = useState<TokenDraft[]>([]);
   const [coins, setCoins] = useState<LaunchedCoin[]>([]);
   const [search, setSearch] = useState("");
   const [feedTab, setFeedTab] = useState<"movers" | "new" | "tradable">("movers");
@@ -169,6 +171,15 @@ export default function SnapHoodApp() {
     setReceipt(null);
   }, [draft]);
 
+  useEffect(() => {
+    if (!user) {
+      setUserDrafts([]);
+      return;
+    }
+
+    void refreshDrafts();
+  }, [user?.id]);
+
   const allocationTotal = useMemo(
     () => form.tokenomics.allocation.reduce((sum, row) => sum + Number(row.percent || 0), 0),
     [form.tokenomics.allocation]
@@ -216,6 +227,20 @@ export default function SnapHoodApp() {
     }
   }
 
+  async function refreshDrafts() {
+    try {
+      const response = await fetch("/api/me/drafts");
+      if (!response.ok) {
+        setUserDrafts([]);
+        return;
+      }
+      const data = (await response.json()) as { drafts?: TokenDraft[] };
+      setUserDrafts(data.drafts ?? []);
+    } catch {
+      setUserDrafts([]);
+    }
+  }
+
   async function signIn() {
     setBusy("auth");
     setError("");
@@ -250,6 +275,7 @@ export default function SnapHoodApp() {
     await fetch("/api/auth/logout", { method: "POST" });
     setUser(null);
     setDraft(null);
+    setUserDrafts([]);
     setReceipt(null);
   }
 
@@ -270,6 +296,7 @@ export default function SnapHoodApp() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not generate token.");
       setDraft(data.draft);
+      void refreshDrafts();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not generate token.");
     } finally {
@@ -305,6 +332,7 @@ export default function SnapHoodApp() {
       if (!response.ok) throw new Error(data.error || "Could not launch token.");
       setReceipt(data.launch);
       void refreshCoins();
+      void refreshDrafts();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not launch token.");
     } finally {
@@ -324,6 +352,13 @@ export default function SnapHoodApp() {
       );
       return { ...current, tokenomics: { ...current.tokenomics, allocation } };
     });
+  }
+
+  function resumeDraft(nextDraft: TokenDraft) {
+    setDraft(nextDraft);
+    setSelectedImage(nextDraft.originalImageUrl);
+    setReceipt(null);
+    setError("");
   }
 
   return (
@@ -588,6 +623,7 @@ export default function SnapHoodApp() {
                         </span>
                       )}
                       <input
+                        ref={fileInputRef}
                         type="file"
                         accept="image/*"
                         capture="environment"
@@ -599,10 +635,63 @@ export default function SnapHoodApp() {
                       />
                     </label>
 
-                    <button className="btn ghost" type="button">
+                    <button
+                      className="btn ghost"
+                      disabled={busy === "generate"}
+                      onClick={() => fileInputRef.current?.click()}
+                      type="button"
+                    >
                       <Upload size={16} />
                       {busy === "generate" ? "Generating" : "Upload snap"}
                     </button>
+
+                    {userDrafts.length > 0 ? (
+                      <div className="recent-drafts" aria-label="Recent token drafts">
+                        <div className="recent-drafts-head">
+                          <span>Recent drafts</span>
+                          <button
+                            className="icon-action"
+                            onClick={() => void refreshDrafts()}
+                            type="button"
+                            aria-label="Refresh drafts"
+                          >
+                            <RefreshCw size={14} />
+                          </button>
+                        </div>
+                        {userDrafts.map((item) => (
+                          <div className={draft?.id === item.id ? "draft-row active" : "draft-row"} key={item.id}>
+                            <img src={item.profileImageUrl} alt="" />
+                            <button
+                              className="draft-row-main"
+                              onClick={() => resumeDraft(item)}
+                              type="button"
+                              disabled={item.status === "launched"}
+                            >
+                              <strong>{item.name}</strong>
+                              <span>${item.ticker} · {item.status}</span>
+                            </button>
+                            {item.status === "launched" && item.contractAddress ? (
+                              <a
+                                className="icon-action"
+                                href={`/coin/${item.contractAddress}`}
+                                aria-label={`Open ${item.name}`}
+                              >
+                                <ExternalLink size={14} />
+                              </a>
+                            ) : (
+                              <button
+                                className="icon-action"
+                                onClick={() => resumeDraft(item)}
+                                type="button"
+                                aria-label={`Resume ${item.name}`}
+                              >
+                                <Rocket size={14} />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
                   </>
                 )}
 

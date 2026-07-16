@@ -84,6 +84,11 @@ if (health.readiness?.demoAuthEnabled) {
   }
 }
 
+if (signedIn) {
+  const draftsPayload = await checkJson("/api/me/drafts", "user drafts");
+  assert(Array.isArray(draftsPayload.drafts), "authenticated drafts response should include an array");
+}
+
 if (verifyGenerate) {
   assert(signedIn, "generate smoke requires demo auth or a dry-run magic link so the script can hold a session");
   await postBadImage("/api/generate");
@@ -98,6 +103,12 @@ if (verifyGenerate) {
     assert(isHttpUrl(draft.bannerImageUrl), "storage-backed banner image should use a public URL");
   }
   assert(Array.isArray(draft?.tokenomics?.allocation), "generated draft should include tokenomics allocation");
+
+  const draftsPayload = await checkJson("/api/me/drafts", "generated draft persistence");
+  assert(
+    draftsPayload.drafts?.some((persistedDraft) => persistedDraft.id === draft.id),
+    "generated draft should be visible in the signed-in user's recent drafts"
+  );
 }
 
 if (signedIn) {
@@ -106,6 +117,7 @@ if (signedIn) {
   assert(logout.revoked === true, "logout should revoke the server-side session");
   const afterLogout = await checkJson("/api/me", "post-logout session");
   assert(afterLogout.user === null, "logout should clear the browser session");
+  await checkUnauthorized("/api/me/drafts", "post-logout drafts");
   signedIn = false;
 }
 
@@ -192,6 +204,15 @@ async function checkJson(path, name) {
   const payload = JSON.parse(text);
   checks.push({ name, status: response.status });
   return payload;
+}
+
+async function checkUnauthorized(path, name) {
+  const response = await fetch(`${baseUrl}${path}`, {
+    headers: withCookies({ "x-forwarded-for": syntheticIp })
+  });
+  const text = await response.text();
+  assert(response.status === 401, `${path} should return 401 when logged out, got ${response.status}: ${text}`);
+  checks.push({ name, status: response.status });
 }
 
 async function postJson(path, body) {

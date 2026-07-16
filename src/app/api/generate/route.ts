@@ -2,11 +2,11 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { generateBrandImages, generateDraftFromImage } from "@/lib/ai";
 import { query } from "@/lib/db";
+import { mapTokenDraft } from "@/lib/drafts";
 import { validateRasterImage } from "@/lib/image-validation";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { rejectCrossOrigin } from "@/lib/request-guards";
 import { saveRemoteImage, saveUpload } from "@/lib/storage";
-import type { TokenDraft } from "@/lib/types";
 
 export const runtime = "nodejs";
 
@@ -74,7 +74,7 @@ export async function POST(request: Request) {
       ]
     );
 
-    const draft = mapDraft(result.rows[0]);
+    const draft = mapTokenDraft(result.rows[0]);
     return NextResponse.json({ draft });
   } catch (error) {
     return NextResponse.json(
@@ -82,21 +82,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-}
-
-function mapDraft(row: Record<string, unknown>): TokenDraft {
-  return {
-    id: String(row.id),
-    name: String(row.name),
-    ticker: String(row.ticker),
-    description: String(row.description),
-    originalImageUrl: String(row.original_image_url),
-    profileImageUrl: String(row.profile_image_url),
-    bannerImageUrl: String(row.banner_image_url),
-    tokenomics: row.tokenomics as TokenDraft["tokenomics"],
-    status: row.status as TokenDraft["status"],
-    contractAddress: row.contract_address ? String(row.contract_address) : undefined,
-    txHash: row.tx_hash ? String(row.tx_hash) : undefined,
-    chainId: row.chain_id ? Number(row.chain_id) : undefined
-  };
 }

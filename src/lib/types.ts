@@ -21,6 +21,8 @@ export type TokenDraft = {
   contractAddress?: string;
   txHash?: string;
   chainId?: number;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export type LaunchRequest = {
