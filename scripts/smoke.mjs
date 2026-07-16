@@ -35,7 +35,10 @@ if (requireCoin) {
   const tradable = coinsPayload.coins.find((coin) => coin.dexscreenerUrl || coin.poolAddress);
   assert(tradable, "expected at least one tradable coin with pool or Dexscreener metadata");
 
-  await checkPage(`/coin/${first.contractAddress}`, first.ticker);
+  const coinPage = await checkPage(`/coin/${first.contractAddress}`, first.ticker);
+  assert(coinPage.includes(`${first.name} ($${first.ticker})`), "coin page should include token-specific metadata title");
+  assert(coinPage.includes('property="og:title"'), "coin page should include Open Graph title metadata");
+  assert(coinPage.includes('name="twitter:card"'), "coin page should include Twitter card metadata");
 }
 
 const authPayload = await postJson("/api/auth/start", {
@@ -91,6 +94,7 @@ async function checkPage(path, expectedText) {
   assert(response.ok, `${path} should return 2xx, got ${response.status}`);
   assert(text.includes(expectedText), `${path} should include ${expectedText}`);
   checks.push({ name: path, status: response.status });
+  return text;
 }
 
 async function checkJson(path, name) {

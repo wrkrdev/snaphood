@@ -1,9 +1,55 @@
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { Activity, ExternalLink, Flame, ShieldCheck, WalletCards } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { getLaunchedCoin, getLaunchProof } from "@/lib/coins";
-import { isAdminEmail } from "@/lib/env";
+import { env, isAdminEmail } from "@/lib/env";
 import { AdminTradingPanel } from "@/components/AdminTradingPanel";
+
+export async function generateMetadata({ params }: { params: Promise<{ contract: string }> }): Promise<Metadata> {
+  const { contract } = await params;
+  const coin = await getLaunchedCoin(contract);
+
+  if (!coin) {
+    return {
+      title: "Coin not found"
+    };
+  }
+
+  const title = `${coin.name} ($${coin.ticker})`;
+  const description = coin.description;
+  const path = `/coin/${coin.contractAddress}`;
+  const imageUrl = absoluteUrl(coin.bannerImageUrl);
+
+  return {
+    title,
+    description,
+    alternates: {
+      canonical: path
+    },
+    openGraph: {
+      title,
+      description,
+      url: path,
+      siteName: "SnapHood",
+      type: "article",
+      images: [
+        {
+          url: imageUrl,
+          width: 1200,
+          height: 630,
+          alt: `${coin.name} banner`
+        }
+      ]
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [imageUrl]
+    }
+  };
+}
 
 export default async function CoinPage({ params }: { params: Promise<{ contract: string }> }) {
   const { contract } = await params;
@@ -153,4 +199,13 @@ export default async function CoinPage({ params }: { params: Promise<{ contract:
       ) : null}
     </main>
   );
+}
+
+function absoluteUrl(value: string) {
+  if (value.startsWith("http://") || value.startsWith("https://")) {
+    return value;
+  }
+
+  const base = env.appUrl.replace(/\/$/, "");
+  return `${base}${value.startsWith("/") ? value : `/${value}`}`;
 }
