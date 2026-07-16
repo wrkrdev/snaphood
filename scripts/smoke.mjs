@@ -78,6 +78,7 @@ if (health.readiness?.demoAuthEnabled) {
 
 if (verifyGenerate) {
   assert(signedIn, "generate smoke requires demo auth or a dry-run magic link so the script can hold a session");
+  await postBadImage("/api/generate");
   const generated = await postImage("/api/generate");
   const draft = generated.draft;
   assert(draft?.id, "generate response should include a draft id");
@@ -208,6 +209,23 @@ async function postImage(path) {
   const payload = JSON.parse(text);
   checks.push({ name: path, status: response.status });
   return payload;
+}
+
+async function postBadImage(path) {
+  const formData = new FormData();
+  formData.append("image", new Blob([Buffer.from("<svg><script>alert(1)</script></svg>")], { type: "image/svg+xml" }), "bad.svg");
+
+  const response = await fetch(`${baseUrl}${path}`, {
+    method: "POST",
+    headers: withCookies({ "x-forwarded-for": syntheticIp }),
+    body: formData
+  });
+  captureCookies(response);
+  const text = await response.text();
+  assert(response.status === 400, `${path} should reject unsafe image uploads, got ${response.status}: ${text}`);
+  const payload = JSON.parse(text);
+  assert(payload.error, "unsafe image upload should return an error");
+  checks.push({ name: `${path} unsafe image`, status: response.status });
 }
 
 function withCookies(headers) {

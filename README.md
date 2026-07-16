@@ -104,6 +104,10 @@ camera access only for the local SnapHood capture workflow.
 State-changing API routes also reject mismatched browser `Origin` or `Referer` headers. This keeps same-origin app requests
 and CLI smoke tests working while blocking cross-site form/fetch attempts against authenticated sessions.
 
+Uploads are limited to PNG, JPEG, WebP, and GIF raster files, and `/api/generate` verifies the file signature before
+storing or sending media to AI providers. `SNAPHOOD_SMOKE_GENERATE=true npm run verify:smoke` covers both unsafe upload
+rejection and a successful PNG draft.
+
 ## Launch Modes
 
 `TOKEN_LAUNCH_MODE=demo` is the default. It creates a realistic launch receipt without broadcasting a transaction.

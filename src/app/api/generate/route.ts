@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { generateBrandImages, generateDraftFromImage } from "@/lib/ai";
 import { query } from "@/lib/db";
+import { validateRasterImage } from "@/lib/image-validation";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { rejectCrossOrigin } from "@/lib/request-guards";
 import { saveRemoteImage, saveUpload } from "@/lib/storage";
@@ -32,12 +33,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Upload an image file." }, { status: 400 });
   }
 
-  if (!file.type.startsWith("image/")) {
-    return NextResponse.json({ error: "Only image uploads are supported." }, { status: 400 });
-  }
-
   if (file.size > 8 * 1024 * 1024) {
     return NextResponse.json({ error: "Image must be 8 MB or smaller." }, { status: 400 });
+  }
+
+  const imageError = await validateRasterImage(file);
+  if (imageError) {
+    return NextResponse.json({ error: imageError }, { status: 400 });
   }
 
   try {
