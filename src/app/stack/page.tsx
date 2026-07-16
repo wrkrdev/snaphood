@@ -1,10 +1,15 @@
 import { Activity, Brain, Database, HardDrive, Mail, Network, ShieldCheck, WalletCards } from "lucide-react";
 import { getReadiness } from "@/lib/env";
 import { hasDatabase, query } from "@/lib/db";
+import { hasWrkrStorageCli, pingRedis } from "@/lib/runtime-readiness";
 
 export default async function StackPage() {
   const readiness = getReadiness();
-  const databaseReachable = await hasDatabase();
+  const [databaseReachable, cacheReachable, storageCliAvailable] = await Promise.all([
+    hasDatabase(),
+    pingRedis(),
+    hasWrkrStorageCli()
+  ]);
   const counts = databaseReachable
     ? await query<{ users: string; launches: string; trading_rows: string }>(
         `
@@ -19,11 +24,16 @@ export default async function StackPage() {
 
   const items = [
     { icon: Database, label: "Wrkr Postgres", value: databaseReachable ? "connected" : "offline", detail: `${row?.users ?? 0} users · ${row?.launches ?? 0} launches` },
-    { icon: Activity, label: "Wrkr Redis", value: readiness.cache ? "configured" : "missing", detail: "cache/session/rate-limit ready" },
+    {
+      icon: Activity,
+      label: "Wrkr Redis",
+      value: readiness.cache ? (cacheReachable ? "connected" : "offline") : "missing",
+      detail: cacheReachable ? "distributed rate limits active" : "memory fallback for local-only use"
+    },
     {
       icon: HardDrive,
       label: "Wrkr Storage",
-      value: readiness.storage ? "enabled" : "local mode",
+      value: readiness.storage ? (storageCliAvailable ? "available" : "missing CLI") : "local mode",
       detail: readiness.publicStorageUploads ? "public asset URLs" : "uploads and generated assets"
     },
     { icon: Brain, label: "OpenAI + Fal", value: readiness.ai && readiness.imageAi ? "live" : "fallback", detail: "vision metadata and image generation" },

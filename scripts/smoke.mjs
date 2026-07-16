@@ -17,6 +17,12 @@ const health = await checkJson("/api/health", "health");
 assert(health.ok === true, "health.ok should be true");
 assert(health.app === "snaphood", "health.app should be snaphood");
 assert(health.readiness?.databaseReachable === true, "database should be reachable");
+if (health.readiness?.cache) {
+  assert(health.readiness.cacheReachable === true, "configured Redis should be reachable");
+}
+if (health.readiness?.storage) {
+  assert(health.readiness.storageCliAvailable === true, "enabled Wrkr storage should have an available CLI");
+}
 
 const coinsPayload = await checkJson("/api/coins", "coins");
 assert(Array.isArray(coinsPayload.coins), "coins response should include an array");
