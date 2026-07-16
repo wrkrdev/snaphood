@@ -39,7 +39,8 @@ export type LaunchAcknowledgements = {
   noAffiliation: true;
   contentRights: true;
   jurisdictionAllowed: true;
-  liveAdminControlled: true;
+  userWalletPaysGas?: true;
+  liveAdminControlled?: true;
 };
 
 export type LaunchedCoin = {

@@ -1,16 +1,23 @@
 import { NextResponse } from "next/server";
+import { getAddress, isAddress, keccak256, type Hex } from "viem";
+import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
 import { query, withTransaction } from "@/lib/db";
-import { env, isAdminEmail } from "@/lib/env";
-import { launchToken } from "@/lib/launch";
-import { validateLaunchRequestShape, validateTokenomics } from "@/lib/launch-validation";
+import { env } from "@/lib/env";
+import { validateLaunchRequestShape, validateTokenomics, type ValidatedLaunchRequest } from "@/lib/launch-validation";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { readJsonBody, rejectCrossOrigin } from "@/lib/request-guards";
+import SnapHoodToken from "@/generated/SnapHoodToken.json";
 
 export const runtime = "nodejs";
 
-const guardrailVersion = "2026-07-16.public-demo-v1";
+const prepareSchema = z.object({
+  creatorWallet: z.string().refine(isAddress, "Creator wallet must be an EVM address.")
+});
+
+const guardrailVersion = "2026-07-16.user-wallet-v1";
 const staleLaunchRecoveryMs = 15 * 60 * 1000;
+
 type DraftLaunchState = {
   id: string;
   status: string;
@@ -29,16 +36,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Sign in before launching." }, { status: 401 });
   }
 
-  if (env.launchMode !== "demo" && !isAdminEmail(user.email)) {
-    return NextResponse.json(
-      { error: "Live launches are admin-controlled in this deployment." },
-      { status: 403 }
-    );
-  }
-
   const limited = await applyRateLimit(request, {
-    name: env.launchMode === "demo" ? "launch:demo:user" : "launch:live:admin",
-    limit: env.launchMode === "demo" ? 8 : 3,
+    name: env.launchMode === "demo" ? "launch:prepare:demo:user" : "launch:prepare:live:user-wallet",
+    limit: env.launchMode === "demo" ? 12 : 6,
     windowSeconds: 60 * 60,
     identity: user.id
   });
@@ -48,7 +48,8 @@ export async function POST(request: Request) {
   if (!json.ok) return json.response;
 
   const parsed = validateLaunchRequestShape(json.body);
-  if (!parsed.success) {
+  const prepare = prepareSchema.safeParse(json.body);
+  if (!parsed.success || !prepare.success) {
     return NextResponse.json({ error: "Launch form is incomplete or invalid." }, { status: 400 });
   }
 
@@ -57,10 +58,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: tokenomicsError }, { status: 400 });
   }
 
+  const creatorWallet = getAddress(prepare.data.creatorWallet);
   const ownership = await query<DraftLaunchState>(
     `
-      select id, status, contract_address, tx_hash, chain_id
-             , updated_at
+      select id, status, contract_address, tx_hash, chain_id, updated_at
       from snaphood_token_drafts
       where id = $1 and user_id = $2
       limit 1
@@ -95,12 +96,12 @@ export async function POST(request: Request) {
     }
 
     if (!isStaleLaunch(draftState.updated_at)) {
-      return NextResponse.json({ error: "This draft is already launching. Refresh in a moment." }, { status: 409 });
+      return NextResponse.json({ launchPlan: buildLaunchPlan(parsed.data, creatorWallet, true) });
     }
 
     const recovered = await recoverStaleLaunch(parsed.data.draftId, user.id, draftState.updated_at);
     if (!recovered) {
-      return NextResponse.json({ error: "This draft is already launching. Refresh in a moment." }, { status: 409 });
+      return NextResponse.json({ error: "This draft is already prepared for launch. Finish the wallet transaction or retry later." }, { status: 409 });
     }
 
     launchableStatus = "draft";
@@ -115,11 +116,23 @@ export async function POST(request: Request) {
     const result = await client.query<{ id: string }>(
       `
         update snaphood_token_drafts
-        set status = 'launching', updated_at = now()
+        set name = $3,
+            ticker = $4,
+            description = $5,
+            tokenomics = $6,
+            status = 'launching',
+            updated_at = now()
         where id = $1 and user_id = $2 and status = 'draft'
         returning id
       `,
-      [parsed.data.draftId, user.id]
+      [
+        parsed.data.draftId,
+        user.id,
+        parsed.data.name,
+        parsed.data.ticker,
+        parsed.data.description,
+        JSON.stringify(parsed.data.tokenomics)
+      ]
     );
 
     if (result.rows[0]) {
@@ -131,7 +144,9 @@ export async function POST(request: Request) {
           "launch.started",
           JSON.stringify({
             mode: env.launchMode,
+            execution: "user-wallet",
             chainId: env.robinhoodChainId,
+            creatorWallet,
             requestedToken: {
               name: parsed.data.name,
               ticker: parsed.data.ticker,
@@ -151,84 +166,37 @@ export async function POST(request: Request) {
 
     return result.rows[0] ?? null;
   });
+
   if (!transition) {
     return NextResponse.json({ error: "This draft is already being launched." }, { status: 409 });
   }
 
-  try {
-    const launch = await launchToken(parsed.data);
-    await withTransaction(async (client) => {
-      await client.query(
-        `
-          update snaphood_token_drafts
-          set name = $2,
-              ticker = $3,
-              description = $4,
-              tokenomics = $5,
-              status = 'launched',
-              contract_address = $6,
-              tx_hash = $7,
-              chain_id = $8,
-              updated_at = now()
-          where id = $1
-        `,
-        [
-          parsed.data.draftId,
-          parsed.data.name,
-          parsed.data.ticker,
-          parsed.data.description,
-          JSON.stringify(parsed.data.tokenomics),
-          launch.contractAddress,
-          launch.txHash,
-          launch.chainId
-        ]
-      );
+  return NextResponse.json({
+    launchPlan: buildLaunchPlan(parsed.data, creatorWallet, false)
+  });
+}
 
-      await client.query(
-        "insert into snaphood_launch_events (id, draft_id, event_type, payload) values ($1, $2, $3, $4)",
-        [
-          crypto.randomUUID(),
-          parsed.data.draftId,
-          "launch.completed",
-          JSON.stringify({
-            launch,
-            guardrails: {
-              version: guardrailVersion,
-              acceptedAt,
-              acceptedBy: user.id,
-              acknowledgements: parsed.data.acknowledgements
-            }
-          })
-        ]
-      );
-    });
-
-    return NextResponse.json({ launch });
-  } catch (error) {
-    await withTransaction(async (client) => {
-      await client.query("update snaphood_token_drafts set status = 'failed', updated_at = now() where id = $1", [
-        parsed.data.draftId
-      ]);
-      await client.query(
-        "insert into snaphood_launch_events (id, draft_id, event_type, payload) values ($1, $2, $3, $4)",
-        [
-          crypto.randomUUID(),
-          parsed.data.draftId,
-          "launch.failed",
-          JSON.stringify({
-            mode: env.launchMode,
-            chainId: env.robinhoodChainId,
-            error: error instanceof Error ? error.message : "Launch failed.",
-            failedAt: new Date().toISOString()
-          })
-        ]
-      );
-    });
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Launch failed." },
-      { status: 500 }
-    );
-  }
+function buildLaunchPlan(input: ValidatedLaunchRequest, creatorWallet: string, reused: boolean) {
+  const initialSupply = input.tokenomics.supply.replace(/,/g, "");
+  return {
+    draftId: input.draftId,
+    mode: env.launchMode,
+    reused,
+    chain: {
+      id: env.robinhoodChainId,
+      name: env.robinhoodNetwork === "mainnet" ? "Robinhood Chain" : "Robinhood Chain Testnet",
+      rpcUrl: env.robinhoodRpcUrl,
+      explorerUrl: env.robinhoodBlockExplorerUrl,
+      nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 }
+    },
+    creatorWallet,
+    contract: {
+      abi: SnapHoodToken.abi,
+      bytecode: SnapHoodToken.bytecode,
+      bytecodeHash: keccak256(SnapHoodToken.bytecode as Hex),
+      args: [input.name, input.ticker, input.tokenomics.decimals, initialSupply, creatorWallet]
+    }
+  };
 }
 
 function isStaleLaunch(updatedAt: Date) {
@@ -268,7 +236,7 @@ async function recoverStaleLaunch(draftId: string, userId: string, previousUpdat
           chainId: env.robinhoodChainId,
           previousUpdatedAt: previousUpdatedAt.toISOString(),
           recoveredAt: new Date().toISOString(),
-          reason: "stale launching draft without chain receipt"
+          reason: "stale user-wallet launch without chain receipt"
         })
       ]
     );

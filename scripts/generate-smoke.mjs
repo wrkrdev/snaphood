@@ -82,6 +82,12 @@ try {
     ]);
     assert(deniedDraft.rows[0]?.status === "draft", "non-admin live launch denial should leave draft status unchanged");
     assert(!deniedDraft.rows[0]?.contract_address && !deniedDraft.rows[0]?.tx_hash && !deniedDraft.rows[0]?.chain_id, "non-admin live launch denial should not write chain receipt fields");
+    await postWalletLaunchPrepare(draft);
+    const preparedDraft = await pool.query("select status, contract_address, tx_hash, chain_id from snaphood_token_drafts where id = $1", [
+      draft.id
+    ]);
+    assert(preparedDraft.rows[0]?.status === "launching", "non-admin wallet launch prepare should mark the draft launching");
+    assert(!preparedDraft.rows[0]?.contract_address && !preparedDraft.rows[0]?.tx_hash && !preparedDraft.rows[0]?.chain_id, "wallet launch prepare should not write chain receipt fields");
   }
 
   console.log(
@@ -211,6 +217,37 @@ async function postLiveLaunchDenied(draft) {
   const payload = JSON.parse(text);
   assert(/admin-controlled/i.test(payload.error ?? ""), "live launch denial should explain admin control");
   checks.push({ name: "/api/launch non-admin live denial", status: response.status });
+}
+
+async function postWalletLaunchPrepare(draft) {
+  const response = await fetch(`${baseUrl}/api/launch/prepare`, {
+    method: "POST",
+    headers: {
+      ...withVerifierHeaders(),
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({
+      draftId: draft.id,
+      name: draft.name,
+      ticker: draft.ticker,
+      description: draft.description,
+      tokenomics: draft.tokenomics,
+      creatorWallet: "0x000000000000000000000000000000000000dEaD",
+      acknowledgements: {
+        noInvestmentValue: true,
+        noAffiliation: true,
+        contentRights: true,
+        jurisdictionAllowed: true,
+        userWalletPaysGas: true
+      }
+    })
+  });
+  const text = await response.text();
+  assert(response.ok, `/api/launch/prepare should allow non-admin wallet launch preparation, got ${response.status}: ${text}`);
+  const payload = JSON.parse(text);
+  assert(payload.launchPlan?.contract?.bytecodeHash, "wallet launch prepare should return a reviewed contract bytecode hash");
+  assert(payload.launchPlan?.creatorWallet?.toLowerCase() === "0x000000000000000000000000000000000000dead", "wallet launch prepare should bind the creator wallet");
+  checks.push({ name: "/api/launch/prepare non-admin wallet plan", status: response.status });
 }
 
 function withVerifierHeaders() {

@@ -14,6 +14,7 @@ Before making SnapHood public:
 - Verify cross-origin mutation protection through `npm run verify:smoke`.
 - Verify unsafe upload rejection through `SNAPHOOD_SMOKE_GENERATE=true npm run verify:smoke`.
 - Verify the public-mode upload-to-draft path through `npm run verify:generate`.
+- Verify `npm run verify:generate` reports a non-admin user-wallet launch plan in live mode.
 - Verify public profile, banner, and original image URLs return valid raster image bytes.
 - Disable demo auth and verify Wrkr magic-link email delivery.
 - Set `NEXT_PUBLIC_APP_URL` to the HTTPS URL from `wrkr expose` or your production domain.
@@ -26,6 +27,7 @@ Before making SnapHood public:
 - Verify launch acknowledgements cover jurisdiction, no-investment-value, content rights, and no-affiliation guardrails.
 - Review `contracts/SnapHoodToken.sol` and keep `npm run contract:verify` green.
 - Deploy to Robinhood Chain testnet before mainnet.
+- Confirm public token launches use the creator's connected wallet for deployment gas and token ownership.
 - Keep liquidity and indexer-swap execution admin-gated with a dry-run/confirmation step.
-- Use a dedicated deployer wallet with low funds and no unrelated assets.
+- Use a dedicated low-balance deployer wallet with no unrelated assets only for admin server-wallet fallback and admin trading operations.
 - Avoid Robinhood logos, proprietary marks, and any claim that the app is official.

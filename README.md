@@ -10,7 +10,7 @@ It is an original launchpad product with a Pump.fun-inspired dense feed and crea
 - Demo session auth backed by Wrkr Postgres.
 - AI-generated token name, ticker, description, and tokenomics with a deterministic fallback.
 - Upload persistence with local preview and optional Wrkr object storage publishing.
-- Admin-gated live launch flow for Robinhood Chain testnet/mainnet configuration.
+- User-wallet live launch flow for Robinhood Chain testnet/mainnet configuration, with an admin-only server-wallet fallback.
 - Public launchpad feed and shareable coin detail pages.
 - Persisted Uniswap v3 pool, LP position, swap, and Dexscreener metadata.
 - `/stack` proof page for Wrkr DB/cache/storage/AI/chain readiness.
@@ -111,6 +111,8 @@ The `SNAPHOOD_SMOKE_GENERATE=true` smoke path uses normal demo or dry-run auth. 
 DB-backed session directly, so it can verify the real `/api/generate` route even when public auth sends Wrkr email links.
 Both paths upload a generated 1x1 PNG and check that `/api/generate` returns persisted draft metadata and image URLs.
 The public smoke paths also fetch profile, banner, and original image URLs and validate raster content type, size, and file signatures.
+In live mode, `verify:generate` also proves that public users cannot spend the server deployer wallet and can prepare a
+user-wallet launch plan without writing fake chain receipt fields.
 They may call configured AI/image providers, so keep them opt-in for low-cost routine checks.
 
 To verify launch idempotency without spending funds, restart the local app with `TOKEN_LAUNCH_MODE=demo`, then run:
@@ -144,20 +146,24 @@ rejection and a successful PNG draft.
 
 `TOKEN_LAUNCH_MODE=demo` is the default. It creates a realistic launch receipt without broadcasting a transaction.
 
-Live launch modes are admin-gated by `SNAPHOOD_ADMIN_EMAILS`. Public visitors can explore coins and generate drafts, but they cannot spend the server deployer wallet.
+In live launch modes, public users launch from their own connected EVM wallet. The browser deploys the reviewed
+`SnapHoodToken` bytecode, the user wallet pays gas, and `/api/launch/complete` verifies the chain receipt, sender,
+bytecode prefix, token name, ticker, decimals, total supply, creator, and creator balance before storing the launch.
+The server deployer wallet path remains admin-gated by `SNAPHOOD_ADMIN_EMAILS` for operational demos and recovery only.
 
 Every launch request must include creator acknowledgements that the token is a meme experiment, not an investment product,
 that SnapHood has no official affiliation with Robinhood, Pump.fun, Dexscreener, or Uniswap, that the creator can use the
-uploaded content, that the creator is allowed to launch from their jurisdiction, and that live execution is admin-controlled. The accepted guardrail version is persisted in
+uploaded content, that the creator is allowed to launch from their jurisdiction, and that live execution uses the creator's
+own wallet unless an admin intentionally uses the server fallback. The accepted guardrail version is persisted in
 `snaphood_launch_events` with the launch receipt.
 
 Before enabling live deployment:
 
-- fund a dedicated low-balance deployer wallet with ETH on the target Robinhood Chain network;
-- set `ROBINHOOD_RPC_URL`, `ROBINHOOD_CHAIN_ID`, and `DEPLOYER_PRIVATE_KEY`;
+- set `ROBINHOOD_RPC_URL` and `ROBINHOOD_CHAIN_ID`;
 - set `SNAPHOOD_ADMIN_EMAILS`;
+- only set and fund `DEPLOYER_PRIVATE_KEY` when you intentionally need the admin server-wallet fallback;
 - review and compile `contracts/SnapHoodToken.sol`;
-- wire the reviewed bytecode into `src/lib/launch.ts`.
+- wire the reviewed bytecode into `src/generated/SnapHoodToken.json`.
 
 Robinhood Chain docs list mainnet chain ID `4663`, testnet chain ID `46630`, ETH gas, and standard EVM contract deployment.
 

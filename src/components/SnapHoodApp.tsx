@@ -17,9 +17,29 @@ import {
   Sparkles,
   Trophy,
   Upload,
+  Wallet,
   WandSparkles
 } from "lucide-react";
+import {
+  createPublicClient,
+  createWalletClient,
+  custom,
+  defineChain,
+  http,
+  parseUnits,
+  type Abi,
+  type Hex
+} from "viem";
 import type { LaunchAcknowledgements, LaunchedCoin, LaunchpadStats, TokenDraft, Tokenomics } from "@/lib/types";
+import SnapHoodToken from "@/generated/SnapHoodToken.json";
+
+declare global {
+  interface Window {
+    ethereum?: {
+      request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+    };
+  }
+}
 
 type User = {
   id: string;
@@ -35,6 +55,7 @@ type LaunchReceipt = {
   mode: string;
   name: string;
   ticker: string;
+  execution?: string;
 };
 
 type Health = {
@@ -70,6 +91,22 @@ type DexPair = {
   fdv?: number;
 };
 
+type LaunchPlan = {
+  draftId: string;
+  mode: string;
+  chain: {
+    id: number;
+    name: string;
+    rpcUrl: string;
+    explorerUrl: string;
+    nativeCurrency: { name: string; symbol: string; decimals: number };
+  };
+  creatorWallet: string;
+  contract: {
+    args: [string, string, number, string, string];
+  };
+};
+
 const launchAcknowledgementItems: Array<{
   key: keyof LaunchAcknowledgements;
   label: string;
@@ -78,7 +115,7 @@ const launchAcknowledgementItems: Array<{
   { key: "noAffiliation", label: "SnapHood is not affiliated with Robinhood, Pump.fun, Dexscreener, or Uniswap." },
   { key: "contentRights", label: "I have the right to use the uploaded image and generated token details." },
   { key: "jurisdictionAllowed", label: "I am allowed to create this token from my jurisdiction." },
-  { key: "liveAdminControlled", label: "Live launches and trading operations are admin-controlled in this deployment." }
+  { key: "userWalletPaysGas", label: "I will launch from my own wallet and pay the gas for any live transaction." }
 ];
 
 function getPair(coin: LaunchedCoin) {
@@ -118,6 +155,8 @@ export default function SnapHoodApp() {
   const [error, setError] = useState("");
   const [authNotice, setAuthNotice] = useState("");
   const [authMagicLink, setAuthMagicLink] = useState("");
+  const [walletAddress, setWalletAddress] = useState("");
+  const [walletChainId, setWalletChainId] = useState<number | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [draft, setDraft] = useState<TokenDraft | null>(null);
   const [userDrafts, setUserDrafts] = useState<TokenDraft[]>([]);
@@ -138,6 +177,7 @@ export default function SnapHoodApp() {
     noAffiliation: false,
     contentRights: false,
     jurisdictionAllowed: false,
+    userWalletPaysGas: false,
     liveAdminControlled: false
   });
   const [receipt, setReceipt] = useState<LaunchReceipt | null>(null);
@@ -176,6 +216,7 @@ export default function SnapHoodApp() {
       noAffiliation: false,
       contentRights: false,
       jurisdictionAllowed: false,
+      userWalletPaysGas: false,
       liveAdminControlled: false
     });
     setReceipt(null);
@@ -209,7 +250,7 @@ export default function SnapHoodApp() {
     () => launchAcknowledgementItems.every((item) => acknowledgements[item.key]),
     [acknowledgements]
   );
-  const liveLaunchLocked = Boolean(draft && health?.readiness.launchMode !== "demo" && !user?.isAdmin);
+  const requiresWalletLaunch = Boolean(draft && health?.readiness.launchMode !== "demo");
   const visibleCoins = useMemo(() => {
     const normalized = search.trim().toLowerCase();
     return coins
@@ -320,6 +361,30 @@ export default function SnapHoodApp() {
     }
   }
 
+  async function connectWallet() {
+    setError("");
+    if (!window.ethereum) {
+      setError("Install a browser wallet that supports EVM networks, then reload SnapHood.");
+      return "";
+    }
+
+    try {
+      setBusy("wallet");
+      const accounts = (await window.ethereum.request({ method: "eth_requestAccounts" })) as string[];
+      const selected = accounts[0] ?? "";
+      if (!selected) throw new Error("No wallet account was selected.");
+      setWalletAddress(selected);
+      const chainIdHex = (await window.ethereum.request({ method: "eth_chainId" })) as string;
+      setWalletChainId(Number.parseInt(chainIdHex, 16));
+      return selected;
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not connect wallet.");
+      return "";
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
     setUser(null);
@@ -355,6 +420,11 @@ export default function SnapHoodApp() {
 
   async function launch() {
     if (!draft) return;
+    if (requiresWalletLaunch) {
+      await launchWithWallet();
+      return;
+    }
+
     setBusy("launch");
     setError("");
 
@@ -372,7 +442,7 @@ export default function SnapHoodApp() {
                 noAffiliation: true,
                 contentRights: true,
                 jurisdictionAllowed: true,
-                liveAdminControlled: true
+                userWalletPaysGas: true
               }
             : acknowledgements
         })
@@ -391,6 +461,135 @@ export default function SnapHoodApp() {
     } finally {
       setBusy(null);
     }
+  }
+
+  async function launchWithWallet() {
+    if (!draft) return;
+    setBusy("launch");
+    setError("");
+
+    try {
+      const creatorWallet = walletAddress || (await connectWallet());
+      if (!creatorWallet) return;
+      setBusy("launch");
+
+      const launchBody = {
+        draftId: draft.id,
+        ...form,
+        ticker: form.ticker.toUpperCase(),
+        creatorWallet,
+        acknowledgements: acknowledgementsAccepted
+          ? {
+              noInvestmentValue: true,
+              noAffiliation: true,
+              contentRights: true,
+              jurisdictionAllowed: true,
+              userWalletPaysGas: true
+            }
+          : acknowledgements
+      };
+
+      const prepareResponse = await fetch("/api/launch/prepare", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(launchBody)
+      });
+      const prepared = (await prepareResponse.json()) as { launchPlan?: LaunchPlan; launch?: LaunchReceipt; error?: string };
+      if (!prepareResponse.ok) throw new Error(prepared.error || "Could not prepare wallet launch.");
+      if (prepared.launch) {
+        setReceipt(prepared.launch);
+        return;
+      }
+      if (!prepared.launchPlan) throw new Error("Launch plan was not returned.");
+
+      const launchPlan = prepared.launchPlan;
+      const ethereum = window.ethereum;
+      if (!ethereum) throw new Error("Browser wallet is not available.");
+      await switchWalletChain(launchPlan.chain);
+      const chain = defineChain({
+        id: launchPlan.chain.id,
+        name: launchPlan.chain.name,
+        nativeCurrency: launchPlan.chain.nativeCurrency,
+        rpcUrls: { default: { http: [launchPlan.chain.rpcUrl] } },
+        blockExplorers: { default: { name: "Robinhood Blockscout", url: launchPlan.chain.explorerUrl } }
+      });
+      const walletClient = createWalletClient({
+        chain,
+        transport: custom(ethereum)
+      });
+      const publicClient = createPublicClient({
+        chain,
+        transport: http(launchPlan.chain.rpcUrl)
+      });
+      const hash = await walletClient.deployContract({
+        account: creatorWallet as Hex,
+        abi: SnapHoodToken.abi as Abi,
+        bytecode: SnapHoodToken.bytecode as Hex,
+        args: [
+          launchPlan.contract.args[0],
+          launchPlan.contract.args[1],
+          launchPlan.contract.args[2],
+          parseUnits(launchPlan.contract.args[3], launchPlan.contract.args[2]),
+          creatorWallet
+        ]
+      });
+
+      const receiptResult = await publicClient.waitForTransactionReceipt({ hash });
+      if (!receiptResult.contractAddress) throw new Error("Wallet transaction did not create a token contract.");
+
+      const completeResponse = await fetch("/api/launch/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...launchBody,
+          txHash: hash,
+          contractAddress: receiptResult.contractAddress
+        })
+      });
+      const completed = (await completeResponse.json()) as { launch?: LaunchReceipt; error?: string };
+      if (!completeResponse.ok) throw new Error(completed.error || "Could not verify wallet launch.");
+      if (!completed.launch) throw new Error("Launch receipt was not returned.");
+
+      setReceipt(completed.launch);
+      void refreshCoins({
+        query: search,
+        tradableOnly: feedTab === "tradable"
+      });
+      void refreshStats();
+      void refreshDrafts();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not launch token from wallet.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function switchWalletChain(chain: LaunchPlan["chain"]) {
+    if (!window.ethereum) throw new Error("Browser wallet is not available.");
+    const chainId = `0x${chain.id.toString(16)}`;
+    try {
+      await window.ethereum.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId }]
+      });
+    } catch (caught) {
+      const code = typeof caught === "object" && caught && "code" in caught ? Number(caught.code) : undefined;
+      if (code !== 4902) throw caught;
+      await window.ethereum.request({
+        method: "wallet_addEthereumChain",
+        params: [
+          {
+            chainId,
+            chainName: chain.name,
+            nativeCurrency: chain.nativeCurrency,
+            rpcUrls: [chain.rpcUrl],
+            blockExplorerUrls: [chain.explorerUrl]
+          }
+        ]
+      });
+    }
+
+    setWalletChainId(chain.id);
   }
 
   function updateAllocation(index: number, key: "label" | "percent", value: string) {
@@ -469,6 +668,12 @@ export default function SnapHoodApp() {
             />
           </div>
           <div className="nav-actions">
+            {health?.readiness.launchMode !== "demo" ? (
+              <button className="btn ghost small" onClick={connectWallet} disabled={busy === "wallet"} type="button">
+                <Wallet size={14} />
+                {walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : busy === "wallet" ? "Connecting" : "Wallet"}
+              </button>
+            ) : null}
             <button
               className="btn ghost small"
               onClick={() => {
@@ -787,7 +992,9 @@ export default function SnapHoodApp() {
                         <p>${form.ticker || "SNAP"} · {form.tokenomics.supply}</p>
                   </div>
                   <div className="disclaimer">
-                    Live launches are admin-controlled; public visitors can explore the launchpad and generate drafts.
+                    {requiresWalletLaunch
+                      ? "Live launches deploy from your connected wallet. SnapHood stores the verified receipt after the chain confirms it."
+                      : "Demo launches create a realistic receipt without broadcasting a transaction."}
                   </div>
                 </div>
 
@@ -870,20 +1077,30 @@ export default function SnapHoodApp() {
                       ))}
                     </div>
 
-                    {liveLaunchLocked ? (
+                    {requiresWalletLaunch ? (
                       <div className="toast">
-                        Live deployment is locked to SnapHood admins. Your draft is saved and editable.
+                        {walletAddress
+                          ? `Wallet connected${walletChainId ? ` on chain ${walletChainId}` : ""}.`
+                          : "Connect an EVM wallet to launch this token with your own gas."}
                       </div>
                     ) : null}
 
                     <button
                       className="btn primary"
-                      disabled={busy === "launch" || allocationTotal !== 100 || !acknowledgementsAccepted || liveLaunchLocked}
-                      onClick={launch}
+                      disabled={busy === "launch" || busy === "wallet" || allocationTotal !== 100 || !acknowledgementsAccepted}
+                      onClick={requiresWalletLaunch && !walletAddress ? connectWallet : launch}
                       type="button"
                     >
-                      <Rocket size={17} />
-                      {liveLaunchLocked ? "Admin launch only" : busy === "launch" ? "Launching" : "Launch"}
+                      {requiresWalletLaunch && !walletAddress ? <Wallet size={17} /> : <Rocket size={17} />}
+                      {requiresWalletLaunch && !walletAddress
+                        ? busy === "wallet"
+                          ? "Connecting"
+                          : "Connect wallet"
+                        : busy === "launch"
+                          ? "Launching"
+                          : requiresWalletLaunch
+                            ? "Launch from wallet"
+                            : "Launch demo"}
                     </button>
                   </div>
                 ) : null}

@@ -20,6 +20,40 @@ export async function launchToken(input: LaunchRequest) {
   return deployToken(input);
 }
 
+export function getRobinhoodChain() {
+  return defineChain({
+    id: env.robinhoodChainId,
+    name: env.robinhoodNetwork === "mainnet" ? "Robinhood Chain" : "Robinhood Chain Testnet",
+    nativeCurrency: {
+      name: "Ether",
+      symbol: "ETH",
+      decimals: 18
+    },
+    rpcUrls: {
+      default: {
+        http: [env.robinhoodRpcUrl]
+      }
+    },
+    blockExplorers: {
+      default: {
+        name: "Robinhood Blockscout",
+        url: env.robinhoodBlockExplorerUrl
+      }
+    }
+  });
+}
+
+export function getRobinhoodPublicClient() {
+  if (!env.robinhoodRpcUrl) {
+    throw new Error("ROBINHOOD_RPC_URL is required for chain verification.");
+  }
+
+  return createPublicClient({
+    chain: getRobinhoodChain(),
+    transport: http(env.robinhoodRpcUrl)
+  });
+}
+
 function demoLaunch(input: LaunchRequest) {
   const txHash = `0x${crypto.randomUUID().replace(/-/g, "")}${crypto.randomUUID().replace(/-/g, "")}`.slice(0, 66);
   const address = `0x${crypto.randomUUID().replace(/-/g, "")}${crypto.randomUUID().replace(/-/g, "")}`.slice(0, 42);
@@ -45,31 +79,8 @@ async function deployToken(input: LaunchRequest) {
   }
 
   const account = privateKeyToAccount(env.deployerPrivateKey as Hex);
-  const chain = defineChain({
-    id: env.robinhoodChainId,
-    name: env.robinhoodNetwork === "mainnet" ? "Robinhood Chain" : "Robinhood Chain Testnet",
-    nativeCurrency: {
-      name: "Ether",
-      symbol: "ETH",
-      decimals: 18
-    },
-    rpcUrls: {
-      default: {
-        http: [env.robinhoodRpcUrl]
-      }
-    },
-    blockExplorers: {
-      default: {
-        name: "Robinhood Blockscout",
-        url: env.robinhoodBlockExplorerUrl
-      }
-    }
-  });
-
-  const publicClient = createPublicClient({
-    chain,
-    transport: http(env.robinhoodRpcUrl)
-  });
+  const chain = getRobinhoodChain();
+  const publicClient = getRobinhoodPublicClient();
   const walletClient = createWalletClient({
     account,
     chain,

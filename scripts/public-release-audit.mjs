@@ -127,7 +127,7 @@ async function checkReleaseDocs() {
     "Disable demo auth",
     "NEXT_PUBLIC_APP_URL",
     "Enable Wrkr storage",
-    "dedicated deployer wallet",
+    "dedicated low-balance deployer wallet",
     "Avoid Robinhood logos"
   ]) {
     includesOrFail(docs, phrase, "docs/PUBLIC_RELEASE.md", `Release checklist covers: ${phrase}`);
@@ -154,12 +154,25 @@ async function checkAdminExecutionGuardrails() {
   includesOrFail(launchRoute, "env.launchMode !== \"demo\" && !isAdminEmail(user.email)", "launch route", "Live token launches require an admin session.");
   includesOrFail(launchRoute, "Live launches are admin-controlled", "launch route", "Live launch denial explains admin control.");
 
+  const prepareRoute = await readText("src/app/api/launch/prepare/route.ts");
+  includesOrFail(prepareRoute, "execution: \"user-wallet\"", "wallet prepare route", "Public launches are prepared for user-wallet execution.");
+  includesOrFail(prepareRoute, "creatorWallet", "wallet prepare route", "Wallet launch preparation binds the creator wallet.");
+  includesOrFail(prepareRoute, "bytecodeHash", "wallet prepare route", "Wallet launch preparation returns the reviewed bytecode hash.");
+
+  const completeRoute = await readText("src/app/api/launch/complete/route.ts");
+  includesOrFail(completeRoute, "verifyUserWalletDeployment", "wallet complete route", "Wallet launch completion verifies the on-chain deployment.");
+  includesOrFail(completeRoute, "Deployment transaction was not sent by the connected creator wallet", "wallet complete route", "Wallet launch completion checks the sender.");
+  includesOrFail(completeRoute, "reviewed SnapHood token artifact", "wallet complete route", "Wallet launch completion checks reviewed bytecode.");
+  includesOrFail(completeRoute, "Deployed token supply was not minted to the creator wallet", "wallet complete route", "Wallet launch completion verifies creator token balance.");
+
   const meRoute = await readText("src/app/api/me/route.ts");
   includesOrFail(meRoute, "isAdminEmail", "session route", "Session endpoint exposes a non-secret admin flag for UI gating.");
 
   const app = await readText("src/components/SnapHoodApp.tsx");
-  includesOrFail(app, "liveLaunchLocked", "SnapHoodApp", "Client launch form locks live launches for non-admin users.");
-  includesOrFail(app, "Admin launch only", "SnapHoodApp", "Client launch button communicates admin-only live launch mode.");
+  includesOrFail(app, "connectWallet", "SnapHoodApp", "Client launch form connects a browser wallet.");
+  includesOrFail(app, "Launch from wallet", "SnapHoodApp", "Client launch button communicates user-wallet launch mode.");
+  includesOrFail(app, "/api/launch/prepare", "SnapHoodApp", "Client launch flow prepares a user-wallet deployment.");
+  includesOrFail(app, "/api/launch/complete", "SnapHoodApp", "Client launch flow completes a verified user-wallet deployment.");
 
   const guard = await readText("src/lib/admin-execution.ts");
   includesOrFail(guard, "EXECUTE_LIVE_TRADE", "admin execution guard", "Live trading confirmation phrase is defined.");
