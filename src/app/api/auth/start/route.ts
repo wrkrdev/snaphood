@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createMagicLink, createSession, sendMagicLink } from "@/lib/auth";
-import { env } from "@/lib/env";
+import { env, isAdminEmail } from "@/lib/env";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { readJsonBody, rejectCrossOrigin } from "@/lib/request-guards";
 
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     }
 
     const user = await createSession(body.data.email);
-    return NextResponse.json({ user, mode: "demo" });
+    return NextResponse.json({ user: { ...user, isAdmin: isAdminEmail(user.email) }, mode: "demo" });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Could not start session." },

@@ -30,6 +30,9 @@ try {
   assert(health.readiness?.databaseReachable === true, "database should be reachable");
 
   await createVerifierSession();
+  const me = await getJson("/api/me", "session user");
+  assert(me.user?.id === userId, "verifier session should be visible through /api/me");
+  assert(me.user?.isAdmin === false, "verifier user should be marked non-admin");
   await postBadImage();
   const generated = await postImage();
   const draft = generated.draft;
@@ -67,6 +70,15 @@ try {
     draftsPayload.drafts?.some((persistedDraft) => persistedDraft.id === draft.id),
     "generated draft should be visible through /api/me/drafts"
   );
+
+  if (health.readiness?.launchMode !== "demo") {
+    await postLiveLaunchDenied(draft);
+    const deniedDraft = await pool.query("select status, contract_address, tx_hash, chain_id from snaphood_token_drafts where id = $1", [
+      draft.id
+    ]);
+    assert(deniedDraft.rows[0]?.status === "draft", "non-admin live launch denial should leave draft status unchanged");
+    assert(!deniedDraft.rows[0]?.contract_address && !deniedDraft.rows[0]?.tx_hash && !deniedDraft.rows[0]?.chain_id, "non-admin live launch denial should not write chain receipt fields");
+  }
 
   console.log(
     JSON.stringify(
@@ -166,6 +178,35 @@ async function postBadImage() {
   const payload = JSON.parse(text);
   assert(payload.error, "unsafe image upload should return an error");
   checks.push({ name: "/api/generate unsafe image", status: response.status });
+}
+
+async function postLiveLaunchDenied(draft) {
+  const response = await fetch(`${baseUrl}/api/launch`, {
+    method: "POST",
+    headers: {
+      ...withVerifierHeaders(),
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({
+      draftId: draft.id,
+      name: draft.name,
+      ticker: draft.ticker,
+      description: draft.description,
+      tokenomics: draft.tokenomics,
+      acknowledgements: {
+        noInvestmentValue: true,
+        noAffiliation: true,
+        contentRights: true,
+        jurisdictionAllowed: true,
+        liveAdminControlled: true
+      }
+    })
+  });
+  const text = await response.text();
+  assert(response.status === 403, `/api/launch should deny non-admin live launches, got ${response.status}: ${text}`);
+  const payload = JSON.parse(text);
+  assert(/admin-controlled/i.test(payload.error ?? ""), "live launch denial should explain admin control");
+  checks.push({ name: "/api/launch non-admin live denial", status: response.status });
 }
 
 function withVerifierHeaders() {

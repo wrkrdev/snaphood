@@ -24,6 +24,7 @@ import type { LaunchAcknowledgements, LaunchedCoin, LaunchpadStats, TokenDraft, 
 type User = {
   id: string;
   email: string;
+  isAdmin?: boolean;
 };
 
 type LaunchReceipt = {
@@ -208,6 +209,7 @@ export default function SnapHoodApp() {
     () => launchAcknowledgementItems.every((item) => acknowledgements[item.key]),
     [acknowledgements]
   );
+  const liveLaunchLocked = Boolean(draft && health?.readiness.launchMode !== "demo" && !user?.isAdmin);
   const visibleCoins = useMemo(() => {
     const normalized = search.trim().toLowerCase();
     return coins
@@ -868,14 +870,20 @@ export default function SnapHoodApp() {
                       ))}
                     </div>
 
+                    {liveLaunchLocked ? (
+                      <div className="toast">
+                        Live deployment is locked to SnapHood admins. Your draft is saved and editable.
+                      </div>
+                    ) : null}
+
                     <button
                       className="btn primary"
-                      disabled={busy === "launch" || allocationTotal !== 100 || !acknowledgementsAccepted}
+                      disabled={busy === "launch" || allocationTotal !== 100 || !acknowledgementsAccepted || liveLaunchLocked}
                       onClick={launch}
                       type="button"
                     >
                       <Rocket size={17} />
-                      {busy === "launch" ? "Launching" : "Launch"}
+                      {liveLaunchLocked ? "Admin launch only" : busy === "launch" ? "Launching" : "Launch"}
                     </button>
                   </div>
                 ) : null}

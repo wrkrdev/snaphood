@@ -148,6 +148,17 @@ async function checkSecurityHeaders() {
 }
 
 async function checkAdminExecutionGuardrails() {
+  const launchRoute = await readText("src/app/api/launch/route.ts");
+  includesOrFail(launchRoute, "env.launchMode !== \"demo\" && !isAdminEmail(user.email)", "launch route", "Live token launches require an admin session.");
+  includesOrFail(launchRoute, "Live launches are admin-controlled", "launch route", "Live launch denial explains admin control.");
+
+  const meRoute = await readText("src/app/api/me/route.ts");
+  includesOrFail(meRoute, "isAdminEmail", "session route", "Session endpoint exposes a non-secret admin flag for UI gating.");
+
+  const app = await readText("src/components/SnapHoodApp.tsx");
+  includesOrFail(app, "liveLaunchLocked", "SnapHoodApp", "Client launch form locks live launches for non-admin users.");
+  includesOrFail(app, "Admin launch only", "SnapHoodApp", "Client launch button communicates admin-only live launch mode.");
+
   const guard = await readText("src/lib/admin-execution.ts");
   includesOrFail(guard, "EXECUTE_LIVE_TRADE", "admin execution guard", "Live trading confirmation phrase is defined.");
   includesOrFail(guard, "hasAdminExecutionConfirmation", "admin execution guard", "Server-side confirmation helper exists.");
