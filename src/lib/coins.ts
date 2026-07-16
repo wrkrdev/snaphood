@@ -1,4 +1,5 @@
 import { query } from "@/lib/db";
+import { env } from "@/lib/env";
 import type { LaunchProof, LaunchedCoin } from "@/lib/types";
 
 type CoinRow = {
@@ -34,7 +35,7 @@ type LaunchEventRow = {
   created_at: Date;
 };
 
-export async function listLaunchedCoins(limit = 30) {
+export async function listLaunchedCoins(limit = 30, options: { chainId?: number } = {}) {
   const result = await query<CoinRow>(
     `
       select d.id,
@@ -65,11 +66,11 @@ export async function listLaunchedCoins(limit = 30) {
       left join snaphood_token_trading t on t.draft_id = d.id
       where d.status = 'launched'
         and d.contract_address is not null
-        and d.chain_id = 4663
+        and ($2::int is null or d.chain_id = $2)
       order by d.updated_at desc
       limit $1
     `,
-    [limit]
+    [limit, options.chainId ?? null]
   );
 
   return result.rows.map(mapCoinRow);
@@ -239,7 +240,7 @@ export async function getLaunchProof(contractOrId: string): Promise<LaunchProof 
 }
 
 export function mapCoinRow(row: CoinRow): LaunchedCoin {
-  const explorerBase = row.chain_id === 4663 ? "https://robinhoodchain.blockscout.com" : "";
+  const explorerBase = getExplorerBase(row.chain_id);
   const dexscreenerPair = row.dexscreener_pair ?? undefined;
 
   return {
@@ -271,6 +272,22 @@ export function mapCoinRow(row: CoinRow): LaunchedCoin {
     dexscreenerPair,
     dexscreenerSyncedAt: row.dexscreener_synced_at?.toISOString()
   };
+}
+
+function getExplorerBase(chainId: number) {
+  if (chainId === env.robinhoodChainId && env.robinhoodBlockExplorerUrl) {
+    return env.robinhoodBlockExplorerUrl.replace(/\/$/, "");
+  }
+
+  if (chainId === 4663) {
+    return "https://robinhoodchain.blockscout.com";
+  }
+
+  if (chainId === 46630) {
+    return "https://explorer.testnet.chain.robinhood.com";
+  }
+
+  return env.robinhoodBlockExplorerUrl.replace(/\/$/, "");
 }
 
 function latestEvent(

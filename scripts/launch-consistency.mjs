@@ -105,6 +105,12 @@ assert(
 const eventCount = await countLaunchCompletedEvents();
 assert(eventCount === 1, `expected one launch.completed event after retry, got ${eventCount}`);
 
+const feed = await getJson(`/api/coins?chainId=${first.launch.chainId}`);
+const feedCoin = feed.coins?.find(
+  (coin) => coin.contractAddress?.toLowerCase() === first.launch.contractAddress.toLowerCase()
+);
+assert(feedCoin, "launched coin should be visible through the public coins API");
+
 await cleanupDraft();
 
 console.log(
@@ -115,6 +121,7 @@ console.log(
       contractAddress: first.launch.contractAddress,
       txHash: first.launch.txHash,
       launchCompletedEvents: eventCount,
+      feedVisible: true,
       reused: second.launch.reused
     },
     null,

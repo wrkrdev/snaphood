@@ -218,6 +218,11 @@ Public pages:
 - `/coin/<contract>` — shareable coin detail page
 - `/stack` — Wrkr stack proof page
 
+Public APIs:
+
+- `GET /api/coins` — latest launched coins across configured Robinhood Chain environments.
+- `GET /api/coins?chainId=4663&limit=30` — bounded chain-specific feed for public mainnet views.
+
 ## Maintenance
 
 Run the maintenance job in dry-run mode to inspect expired sessions, retired magic-link challenges, and stale unlaunched drafts:

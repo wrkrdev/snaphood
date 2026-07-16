@@ -94,6 +94,15 @@ function compactUsd(value?: number) {
   }).format(value);
 }
 
+function activityScore(coin: LaunchedCoin) {
+  const pair = getPair(coin);
+  return (pair?.volume?.h24 ?? 0) * 3 + (pair?.liquidity?.usd ?? 0) + (pair?.marketCap ?? pair?.fdv ?? 0) / 1000;
+}
+
+function isTradable(coin: LaunchedCoin) {
+  return Boolean(coin.dexscreenerUrl || coin.poolAddress);
+}
+
 export default function SnapHoodApp() {
   const [health, setHealth] = useState<Health | null>(null);
   const [user, setUser] = useState<User | null>(null);
@@ -170,16 +179,24 @@ export default function SnapHoodApp() {
   );
   const visibleCoins = useMemo(() => {
     const normalized = search.trim().toLowerCase();
-    return coins.filter((coin) => {
-      const matchesSearch =
-        !normalized ||
-        coin.name.toLowerCase().includes(normalized) ||
-        coin.ticker.toLowerCase().includes(normalized) ||
-        coin.contractAddress.toLowerCase().includes(normalized);
-      const matchesTab =
-        feedTab === "tradable" ? Boolean(coin.dexscreenerUrl) : feedTab === "new" ? true : true;
-      return matchesSearch && matchesTab;
-    });
+    return coins
+      .filter((coin) => {
+        const matchesSearch =
+          !normalized ||
+          coin.name.toLowerCase().includes(normalized) ||
+          coin.ticker.toLowerCase().includes(normalized) ||
+          coin.contractAddress.toLowerCase().includes(normalized);
+        const matchesTab = feedTab === "tradable" ? isTradable(coin) : true;
+        return matchesSearch && matchesTab;
+      })
+      .sort((left, right) => {
+        if (feedTab === "movers") {
+          const scoreDelta = activityScore(right) - activityScore(left);
+          if (scoreDelta !== 0) return scoreDelta;
+        }
+
+        return new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
+      });
   }, [coins, feedTab, search]);
   const featuredCoins = visibleCoins.slice(0, 4);
 
@@ -384,7 +401,7 @@ export default function SnapHoodApp() {
               <div className="ticker-card">
                 <Flame size={18} />
                 <div>
-                  <strong>{coins.filter((coin) => coin.dexscreenerUrl).length}</strong>
+                  <strong>{coins.filter(isTradable).length}</strong>
                   <span>tradable</span>
                 </div>
               </div>
@@ -420,7 +437,7 @@ export default function SnapHoodApp() {
                         <strong>${coin.ticker}</strong>
                         <span>{coin.name}</span>
                       </div>
-                      <em>{coin.dexscreenerUrl ? "chart" : "contract"}</em>
+                      <em>{isTradable(coin) ? "trade" : "contract"}</em>
                     </a>
                   ))}
                 </div>
@@ -472,7 +489,8 @@ export default function SnapHoodApp() {
                                 <span>Vol {compactUsd(pair?.volume?.h24)}</span>
                               </div>
                               <div className="coin-meta">
-                                <span>{coin.dexscreenerUrl ? "tradable" : "deployed"}</span>
+                                <span>{isTradable(coin) ? "tradable" : "deployed"}</span>
+                                <span>chain {coin.chainId}</span>
                                 <span>{new Date(coin.updatedAt).toLocaleDateString()}</span>
                               </div>
                             </div>
@@ -487,6 +505,11 @@ export default function SnapHoodApp() {
                           <ExternalLink size={14} />
                           Contract
                         </a>
+                        {coin.txUrl ? (
+                          <a className="btn ghost small" href={coin.txUrl} target="_blank" rel="noreferrer">
+                            Tx
+                          </a>
+                        ) : null}
                         {coin.dexscreenerUrl ? (
                           <a className="btn primary small" href={coin.dexscreenerUrl} target="_blank" rel="noreferrer">
                             Chart
