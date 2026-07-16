@@ -53,6 +53,8 @@ if (requireCoin) {
   assert(coinPage.includes(`${proofCoin.name} ($${proofCoin.ticker})`), "coin page should include token-specific metadata title");
   assert(coinPage.includes('property="og:title"'), "coin page should include Open Graph title metadata");
   assert(coinPage.includes('name="twitter:card"'), "coin page should include Twitter card metadata");
+  assert(coinPage.includes("Tokenomics"), "coin page should include tokenomics");
+  assert(coinPage.includes("Supply"), "coin page should include token supply");
 
   const sitemap = await checkPage("/sitemap.xml", proofCoin.contractAddress);
   assert(sitemap.includes("/stack"), "sitemap should include stack proof page");

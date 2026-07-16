@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getLaunchedCoin, getLaunchProof } from "@/lib/coins";
 import { env, isAdminEmail } from "@/lib/env";
 import { AdminTradingPanel } from "@/components/AdminTradingPanel";
+import type { Tokenomics } from "@/lib/types";
 
 export async function generateMetadata({ params }: { params: Promise<{ contract: string }> }): Promise<Metadata> {
   const { contract } = await params;
@@ -72,6 +73,7 @@ export default async function CoinPage({ params }: { params: Promise<{ contract:
         marketCap?: number;
       }
     | undefined;
+  const tokenomics = parseTokenomics(coin.tokenomics);
 
   return (
     <main className="coin-page">
@@ -155,6 +157,42 @@ export default async function CoinPage({ params }: { params: Promise<{ contract:
         </dl>
       </section>
 
+      {tokenomics ? (
+        <section className="coin-tokenomics">
+          <div className="proof-head">
+            <div>
+              <p className="eyebrow">launch config</p>
+              <h2>Tokenomics</h2>
+            </div>
+            <div className="tokenomics-supply">
+              <span>Supply</span>
+              <strong>{formatSupply(tokenomics.supply)}</strong>
+              <em>{tokenomics.decimals} decimals</em>
+            </div>
+          </div>
+          <div className="allocation-bars">
+            {tokenomics.allocation.map((row) => (
+              <div className="allocation-item" key={row.label}>
+                <div>
+                  <strong>{row.label}</strong>
+                  <span>{row.percent}%</span>
+                </div>
+                <span className="allocation-track">
+                  <span style={{ width: `${Math.max(0, Math.min(row.percent, 100))}%` }} />
+                </span>
+              </div>
+            ))}
+          </div>
+          {tokenomics.notes.length > 0 ? (
+            <ul className="tokenomics-notes">
+              {tokenomics.notes.map((note) => (
+                <li key={note}>{note}</li>
+              ))}
+            </ul>
+          ) : null}
+        </section>
+      ) : null}
+
       {proof ? (
         <section className="proof-timeline">
           <div className="proof-head">
@@ -208,4 +246,33 @@ function absoluteUrl(value: string) {
 
   const base = env.appUrl.replace(/\/$/, "");
   return `${base}${value.startsWith("/") ? value : `/${value}`}`;
+}
+
+function parseTokenomics(value: unknown): Tokenomics | null {
+  if (!value || typeof value !== "object") return null;
+  const input = value as Partial<Tokenomics>;
+  const decimals = Number(input.decimals);
+  const allocation = Array.isArray(input.allocation)
+    ? input.allocation
+        .map((row) => ({
+          label: String(row.label ?? "").trim().slice(0, 60),
+          percent: Number(row.percent)
+        }))
+        .filter((row) => row.label && Number.isFinite(row.percent) && row.percent >= 0 && row.percent <= 100)
+    : [];
+
+  return {
+    supply: String(input.supply ?? ""),
+    decimals: Number.isInteger(decimals) ? decimals : 18,
+    allocation,
+    notes: Array.isArray(input.notes) ? input.notes.map((note) => String(note).trim()).filter(Boolean).slice(0, 5) : []
+  };
+}
+
+function formatSupply(value: string) {
+  const normalized = value.replace(/,/g, "");
+  if (!/^\d+$/.test(normalized)) return value;
+  return new Intl.NumberFormat("en-US", { notation: normalized.length > 9 ? "compact" : "standard" }).format(
+    Number(normalized)
+  );
 }

@@ -1145,6 +1145,96 @@ h1 {
   overflow-wrap: anywhere;
 }
 
+.coin-tokenomics {
+  display: grid;
+  gap: 16px;
+  border: 1px solid rgba(5, 5, 5, 0.1);
+  border-radius: 8px;
+  background: #fff;
+  padding: 18px;
+}
+
+.tokenomics-supply {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  text-align: right;
+}
+
+.tokenomics-supply span,
+.tokenomics-supply em {
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 760;
+}
+
+.tokenomics-supply strong {
+  font-size: 22px;
+}
+
+.allocation-bars {
+  display: grid;
+  gap: 12px;
+}
+
+.allocation-item {
+  display: grid;
+  gap: 7px;
+}
+
+.allocation-item div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.allocation-item strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.allocation-item span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 780;
+}
+
+.allocation-track {
+  display: block;
+  width: 100%;
+  height: 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #edf2eb;
+}
+
+.allocation-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--hood-green);
+}
+
+.tokenomics-notes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tokenomics-notes li {
+  border-radius: 999px;
+  background: #f0f3ef;
+  color: var(--ink-soft);
+  padding: 7px 9px;
+  font-size: 13px;
+  font-weight: 720;
+}
+
 .proof-timeline {
   display: grid;
   gap: 14px;
@@ -1502,6 +1592,16 @@ h1 {
   .coin-ledger div,
   .stack-grid {
     grid-template-columns: 1fr;
+  }
+
+  .coin-tokenomics .proof-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .tokenomics-supply {
+    justify-items: start;
+    text-align: left;
   }
 
   .coin-hero-media {
