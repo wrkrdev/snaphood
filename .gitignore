@@ -7,5 +7,6 @@ coverage/
 !.env.example
 public/uploads/
 data/uploads/
+logs/
 npm-debug.log*
 *.tsbuildinfo
