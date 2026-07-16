@@ -102,6 +102,9 @@ assert(
   "second launch should return the same contract and tx"
 );
 
+const eventCount = await countLaunchCompletedEvents();
+assert(eventCount === 1, `expected one launch.completed event after retry, got ${eventCount}`);
+
 await cleanupDraft();
 
 console.log(
@@ -111,6 +114,7 @@ console.log(
       draftId,
       contractAddress: first.launch.contractAddress,
       txHash: first.launch.txHash,
+      launchCompletedEvents: eventCount,
       reused: second.launch.reused
     },
     null,
@@ -126,6 +130,23 @@ async function cleanupDraft() {
     await cleanupPool.query("delete from snaphood_token_drafts where id = $1", [draftId]);
   } finally {
     await cleanupPool.end().catch(() => undefined);
+  }
+}
+
+async function countLaunchCompletedEvents() {
+  const countPool = new Pool({ connectionString: databaseUrl, max: 1 });
+  try {
+    const result = await countPool.query(
+      `
+        select count(*)::int as count
+        from snaphood_launch_events
+        where draft_id = $1 and event_type = 'launch.completed'
+      `,
+      [draftId]
+    );
+    return result.rows[0].count;
+  } finally {
+    await countPool.end().catch(() => undefined);
   }
 }
 

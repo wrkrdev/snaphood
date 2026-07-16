@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
-import { query } from "@/lib/db";
+import { query, withTransaction } from "@/lib/db";
 import { env, isAdminEmail } from "@/lib/env";
 import { launchToken } from "@/lib/launch";
 import { applyRateLimit } from "@/lib/rate-limit";
@@ -143,49 +143,51 @@ export async function POST(request: Request) {
 
   try {
     const launch = await launchToken(parsed.data);
-    await query(
-      `
-        update snaphood_token_drafts
-        set name = $2,
-            ticker = $3,
-            description = $4,
-            tokenomics = $5,
-            status = 'launched',
-            contract_address = $6,
-            tx_hash = $7,
-            chain_id = $8,
-            updated_at = now()
-        where id = $1
-      `,
-      [
-        parsed.data.draftId,
-        parsed.data.name,
-        parsed.data.ticker,
-        parsed.data.description,
-        JSON.stringify(parsed.data.tokenomics),
-        launch.contractAddress,
-        launch.txHash,
-        launch.chainId
-      ]
-    );
+    await withTransaction(async (client) => {
+      await client.query(
+        `
+          update snaphood_token_drafts
+          set name = $2,
+              ticker = $3,
+              description = $4,
+              tokenomics = $5,
+              status = 'launched',
+              contract_address = $6,
+              tx_hash = $7,
+              chain_id = $8,
+              updated_at = now()
+          where id = $1
+        `,
+        [
+          parsed.data.draftId,
+          parsed.data.name,
+          parsed.data.ticker,
+          parsed.data.description,
+          JSON.stringify(parsed.data.tokenomics),
+          launch.contractAddress,
+          launch.txHash,
+          launch.chainId
+        ]
+      );
 
-    await query(
-      "insert into snaphood_launch_events (id, draft_id, event_type, payload) values ($1, $2, $3, $4)",
-      [
-        crypto.randomUUID(),
-        parsed.data.draftId,
-        "launch.completed",
-        JSON.stringify({
-          launch,
-          guardrails: {
-            version: guardrailVersion,
-            acceptedAt: new Date().toISOString(),
-            acceptedBy: user.id,
-            acknowledgements: parsed.data.acknowledgements
-          }
-        })
-      ]
-    );
+      await client.query(
+        "insert into snaphood_launch_events (id, draft_id, event_type, payload) values ($1, $2, $3, $4)",
+        [
+          crypto.randomUUID(),
+          parsed.data.draftId,
+          "launch.completed",
+          JSON.stringify({
+            launch,
+            guardrails: {
+              version: guardrailVersion,
+              acceptedAt: new Date().toISOString(),
+              acceptedBy: user.id,
+              acknowledgements: parsed.data.acknowledgements
+            }
+          })
+        ]
+      );
+    });
 
     return NextResponse.json({ launch });
   } catch (error) {
