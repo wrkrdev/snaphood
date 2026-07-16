@@ -52,7 +52,16 @@ With the app running locally, verify the full demo surface:
 npm run db:migrate
 npm run build
 npm audit --audit-level=high
+npm run verify:readiness
 npm run verify:smoke
+```
+
+`verify:readiness` checks environment shape, Postgres reachability, expected database tables, Redis ping, and Wrkr storage CLI availability
+without printing secret values. Use stricter public or live profiles before exposing the app:
+
+```bash
+npm run verify:readiness -- --profile=public
+npm run verify:readiness -- --profile=live
 ```
 
 `verify:smoke` checks `/`, `/stack`, `/robots.txt`, `/sitemap.xml`, `/api/health`, launched coin feed/detail/proof APIs, a shareable coin page,
@@ -176,6 +185,23 @@ Public pages:
 - `/` — launchpad feed and creation workflow
 - `/coin/<contract>` — shareable coin detail page
 - `/stack` — Wrkr stack proof page
+
+## Maintenance
+
+Run the maintenance job in dry-run mode to inspect expired sessions, retired magic-link challenges, and stale unlaunched drafts:
+
+```bash
+npm run db:maintenance
+```
+
+Execute cleanup explicitly:
+
+```bash
+SNAPHOOD_MAINTENANCE_DRY_RUN=false npm run db:maintenance
+```
+
+The job never deletes launched coins. It only removes expired sessions, old used/expired auth challenges, and token drafts that are still
+`status='draft'` after `SNAPHOOD_STALE_DRAFT_RETENTION_DAYS`. On Wrkr, schedule it with `crontab` once the app is public.
 
 ## AI
 

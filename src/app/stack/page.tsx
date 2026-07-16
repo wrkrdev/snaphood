@@ -20,7 +20,12 @@ export default async function StackPage() {
   const items = [
     { icon: Database, label: "Wrkr Postgres", value: databaseReachable ? "connected" : "offline", detail: `${row?.users ?? 0} users · ${row?.launches ?? 0} launches` },
     { icon: Activity, label: "Wrkr Redis", value: readiness.cache ? "configured" : "missing", detail: "cache/session/rate-limit ready" },
-    { icon: HardDrive, label: "Wrkr Storage", value: readiness.storage ? "enabled" : "local mode", detail: "uploads and generated assets" },
+    {
+      icon: HardDrive,
+      label: "Wrkr Storage",
+      value: readiness.storage ? "enabled" : "local mode",
+      detail: readiness.publicStorageUploads ? "public asset URLs" : "uploads and generated assets"
+    },
     { icon: Brain, label: "OpenAI + Fal", value: readiness.ai && readiness.imageAi ? "live" : "fallback", detail: "vision metadata and image generation" },
     { icon: Network, label: "Robinhood Chain", value: readiness.chain ? `${readiness.chainId}` : "missing", detail: `${readiness.network} RPC` },
     { icon: WalletCards, label: "Deployer", value: readiness.deployer ? "configured" : "missing", detail: readiness.adminConfigured ? "admin gated" : "admin missing" },

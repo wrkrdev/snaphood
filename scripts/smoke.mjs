@@ -67,6 +67,11 @@ if (verifyGenerate) {
   assert(draft?.id, "generate response should include a draft id");
   assert(draft?.name && draft?.ticker && draft?.description, "generated draft should include token metadata");
   assert(draft?.originalImageUrl && draft?.profileImageUrl && draft?.bannerImageUrl, "generated draft should include stored image URLs");
+  if (health.readiness?.storage && health.readiness?.publicStorageUploads) {
+    assert(isHttpUrl(draft.originalImageUrl), "storage-backed original image should use a public URL");
+    assert(isHttpUrl(draft.profileImageUrl), "storage-backed profile image should use a public URL");
+    assert(isHttpUrl(draft.bannerImageUrl), "storage-backed banner image should use a public URL");
+  }
   assert(Array.isArray(draft?.tokenomics?.allocation), "generated draft should include tokenomics allocation");
 }
 
@@ -178,6 +183,10 @@ function tinyPng() {
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC",
     "base64"
   );
+}
+
+function isHttpUrl(value) {
+  return typeof value === "string" && /^https?:\/\//.test(value);
 }
 
 function assert(condition, message) {

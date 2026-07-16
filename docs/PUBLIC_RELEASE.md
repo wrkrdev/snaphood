@@ -4,8 +4,11 @@ Before making SnapHood public:
 
 - Confirm `.env.local` and generated upload folders are not committed.
 - Rotate any key that was ever pasted into a shell, log, screenshot, or chat.
+- Run `npm run verify:readiness -- --profile=public` and resolve every failure.
 - Disable demo auth and verify Wrkr magic-link email delivery.
 - Verify Redis-backed rate limits are active for auth, generation, launch, and admin trading endpoints.
+- Enable Wrkr storage with public asset URLs for uploaded and generated coin media.
+- Schedule `SNAPHOOD_MAINTENANCE_DRY_RUN=false npm run db:maintenance` with `crontab`.
 - Keep default `TOKEN_LAUNCH_MODE=demo` in `.env.example`.
 - Verify launch acknowledgements cover jurisdiction, no-investment-value, content rights, and no-affiliation guardrails.
 - Review `contracts/SnapHoodToken.sol` and use a reproducible compile/deploy script.

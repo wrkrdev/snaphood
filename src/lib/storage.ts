@@ -45,7 +45,8 @@ async function saveBuffer(
 ) {
   const id = crypto.randomUUID();
   const filename = `${id}${options.extension}`;
-  const key = `snaphood/${options.namespace}/${filename}`;
+  const keyPrefix = env.wrkrStoragePublicUploads ? "public/snaphood" : "snaphood";
+  const key = `${keyPrefix}/${options.namespace}/${filename}`;
 
   await mkdir(path.join(process.cwd(), "public", "uploads"), { recursive: true });
   const localPath = path.join(process.cwd(), "public", "uploads", filename);

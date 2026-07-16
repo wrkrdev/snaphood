@@ -12,8 +12,10 @@
     "liquidity:seed": "node scripts/seed-uniswap-v3-liquidity.mjs",
     "swap:smoke": "node scripts/swap-uniswap-v3-smoke.mjs",
     "verify:smoke": "node scripts/smoke.mjs",
+    "verify:readiness": "node scripts/readiness.mjs",
     "dex:sync": "node scripts/sync-dexscreener.mjs",
-    "db:migrate": "tsx scripts/migrate.ts"
+    "db:migrate": "tsx scripts/migrate.ts",
+    "db:maintenance": "node scripts/maintenance.mjs"
   },
   "dependencies": {
     "@fal-ai/client": "^1.10.1",

@@ -54,6 +54,7 @@ export function getReadiness() {
     ai: Boolean(env.llmApiKey),
     imageAi: Boolean(env.falKey),
     storage: env.wrkrStorageEnabled,
+    publicStorageUploads: env.wrkrStoragePublicUploads,
     chain: Boolean(env.robinhoodRpcUrl),
     deployer: Boolean(env.deployerPrivateKey),
     adminConfigured: env.adminEmails.length > 0,
