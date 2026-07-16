@@ -55,7 +55,7 @@ npm audit --audit-level=high
 npm run verify:smoke
 ```
 
-`verify:smoke` checks `/`, `/stack`, `/api/health`, launched coin feed/detail APIs, a shareable coin page,
+`verify:smoke` checks `/`, `/stack`, `/api/health`, launched coin feed/detail/proof APIs, a shareable coin page,
 demo or magic-link auth behavior, and unauthenticated admin-route protection. It defaults to
 `http://localhost:3000`; override with `SNAPHOOD_SMOKE_BASE_URL`.
 

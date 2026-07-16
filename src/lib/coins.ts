@@ -1,5 +1,5 @@
 import { query } from "@/lib/db";
-import type { LaunchedCoin } from "@/lib/types";
+import type { LaunchProof, LaunchedCoin } from "@/lib/types";
 
 type CoinRow = {
   id: string;
@@ -26,6 +26,12 @@ type CoinRow = {
   dexscreener_url: string | null;
   dexscreener_pair: Record<string, unknown> | null;
   dexscreener_synced_at: Date | null;
+};
+
+type LaunchEventRow = {
+  event_type: string;
+  payload: Record<string, unknown>;
+  created_at: Date;
 };
 
 export async function listLaunchedCoins(limit = 30) {
@@ -110,6 +116,113 @@ export async function getLaunchedCoin(contractOrId: string) {
   return row ? mapCoinRow(row) : null;
 }
 
+export async function getLaunchProof(contractOrId: string): Promise<LaunchProof | null> {
+  const coin = await getLaunchedCoin(contractOrId);
+  if (!coin) return null;
+
+  const events = await query<LaunchEventRow>(
+    `
+      select event_type, payload, created_at
+      from snaphood_launch_events
+      where draft_id = $1
+      order by created_at asc
+    `,
+    [coin.id]
+  );
+  const launchEventRow = [...events.rows].reverse().find((event) => event.event_type === "launch.completed");
+  const launchEvent = launchEventRow
+    ? {
+        eventType: launchEventRow.event_type,
+        createdAt: launchEventRow.created_at.toISOString(),
+        payload: launchEventRow.payload
+      }
+    : undefined;
+  const guardrails = readGuardrails(launchEventRow?.payload);
+  const txBase = coin.txUrl?.replace(/\/tx\/[^/]+$/, "/tx");
+  const timeline = [
+    guardrails
+      ? {
+          label: "Launch guardrails accepted",
+          status: "complete" as const,
+          timestamp: guardrails.acceptedAt,
+          detail: guardrails.version ? `Version ${guardrails.version}` : "Creator acknowledgements recorded"
+        }
+      : {
+          label: "Launch guardrails accepted",
+          status: "pending" as const,
+          detail: "Legacy launch event did not include guardrail metadata"
+        },
+    {
+      label: "Token deployed",
+      status: "complete" as const,
+      timestamp: launchEvent?.createdAt ?? coin.updatedAt,
+      detail: `${coin.name} on chain ${coin.chainId}`,
+      txHash: coin.txHash,
+      url: coin.txUrl
+    },
+    coin.poolAddress
+      ? {
+          label: "Uniswap pool recorded",
+          status: "complete" as const,
+          detail: coin.poolAddress,
+          url: coin.poolUrl
+        }
+      : {
+          label: "Uniswap pool recorded",
+          status: "pending" as const,
+          detail: "No pool metadata recorded yet"
+        },
+    coin.liquidityTxHash
+      ? {
+          label: "Liquidity seeded",
+          status: "complete" as const,
+          detail: `${coin.liquidityTokenAmount ?? "token"} tokens + ${coin.liquidityEthAmount ?? "ETH"} WETH side`,
+          txHash: coin.liquidityTxHash,
+          url: txBase ? `${txBase}/${coin.liquidityTxHash}` : undefined
+        }
+      : {
+          label: "Liquidity seeded",
+          status: "pending" as const,
+          detail: "No liquidity transaction recorded yet"
+        },
+    coin.swapTxHash
+      ? {
+          label: "Indexer swap",
+          status: "complete" as const,
+          detail: "Tiny swap used to help indexers discover the pool",
+          txHash: coin.swapTxHash,
+          url: txBase ? `${txBase}/${coin.swapTxHash}` : undefined
+        }
+      : {
+          label: "Indexer swap",
+          status: "pending" as const,
+          detail: "No indexer swap recorded yet"
+        },
+    coin.dexscreenerUrl
+      ? {
+          label: "Dexscreener synced",
+          status: "complete" as const,
+          timestamp: coin.dexscreenerSyncedAt,
+          detail: "Cached pair payload available",
+          url: coin.dexscreenerUrl
+        }
+      : {
+          label: "Dexscreener synced",
+          status: "pending" as const,
+          detail: "Pair has not been synced from Dexscreener yet"
+        }
+  ];
+
+  return {
+    coinId: coin.id,
+    contractAddress: coin.contractAddress,
+    chainId: coin.chainId,
+    launchEvent,
+    guardrails,
+    timeline
+  };
+}
+
 export function mapCoinRow(row: CoinRow): LaunchedCoin {
   const explorerBase = row.chain_id === 4663 ? "https://robinhoodchain.blockscout.com" : "";
   const dexscreenerPair = row.dexscreener_pair ?? undefined;
@@ -142,5 +255,22 @@ export function mapCoinRow(row: CoinRow): LaunchedCoin {
     dexscreenerUrl: row.dexscreener_url ?? undefined,
     dexscreenerPair,
     dexscreenerSyncedAt: row.dexscreener_synced_at?.toISOString()
+  };
+}
+
+function readGuardrails(payload: Record<string, unknown> | undefined): LaunchProof["guardrails"] | undefined {
+  const guardrails = payload?.guardrails;
+  if (!guardrails || typeof guardrails !== "object") {
+    return undefined;
+  }
+
+  const value = guardrails as Record<string, unknown>;
+  return {
+    version: typeof value.version === "string" ? value.version : undefined,
+    acceptedAt: typeof value.acceptedAt === "string" ? value.acceptedAt : undefined,
+    acknowledgements:
+      value.acknowledgements && typeof value.acknowledgements === "object"
+        ? (value.acknowledgements as Record<string, unknown>)
+        : undefined
   };
 }

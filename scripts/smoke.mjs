@@ -27,6 +27,11 @@ if (requireCoin) {
   assert(detail.coin?.contractAddress?.toLowerCase() === first.contractAddress.toLowerCase(), "coin detail should match feed contract");
   assert(detail.coin?.explorerUrl, "coin detail should include explorer URL");
 
+  const proof = await checkJson(`/api/coins/${first.contractAddress}/proof`, "launch proof");
+  assert(proof.proof?.contractAddress?.toLowerCase() === first.contractAddress.toLowerCase(), "launch proof should match feed contract");
+  assert(Array.isArray(proof.proof?.timeline), "launch proof should include a timeline");
+  assert(proof.proof.timeline.some((item) => item.label === "Token deployed" && item.status === "complete"), "launch proof should include completed deployment");
+
   const tradable = coinsPayload.coins.find((coin) => coin.dexscreenerUrl || coin.poolAddress);
   assert(tradable, "expected at least one tradable coin with pool or Dexscreener metadata");
 

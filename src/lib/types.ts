@@ -69,3 +69,29 @@ export type LaunchedCoin = {
   dexscreenerPair?: Record<string, unknown>;
   dexscreenerSyncedAt?: string;
 };
+
+export type LaunchProofTimelineItem = {
+  label: string;
+  status: "complete" | "pending";
+  timestamp?: string;
+  detail?: string;
+  txHash?: string;
+  url?: string;
+};
+
+export type LaunchProof = {
+  coinId: string;
+  contractAddress: string;
+  chainId: number;
+  launchEvent?: {
+    eventType: string;
+    createdAt: string;
+    payload: Record<string, unknown>;
+  };
+  guardrails?: {
+    version?: string;
+    acceptedAt?: string;
+    acknowledgements?: Record<string, unknown>;
+  };
+  timeline: LaunchProofTimelineItem[];
+};

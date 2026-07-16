@@ -1145,6 +1145,112 @@ h1 {
   overflow-wrap: anywhere;
 }
 
+.proof-timeline {
+  display: grid;
+  gap: 14px;
+  border: 1px solid rgba(5, 5, 5, 0.1);
+  border-radius: 8px;
+  background: #fff;
+  padding: 18px;
+}
+
+.proof-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.proof-head h2 {
+  margin: 8px 0 0;
+}
+
+.proof-timeline ol {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.proof-step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 12px;
+  padding: 0 0 14px;
+}
+
+.proof-step:not(:last-child)::before {
+  position: absolute;
+  top: 18px;
+  bottom: 0;
+  left: 8px;
+  width: 2px;
+  background: rgba(5, 5, 5, 0.1);
+  content: "";
+}
+
+.proof-dot {
+  z-index: 1;
+  width: 18px;
+  height: 18px;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: var(--muted);
+  box-shadow: 0 0 0 1px rgba(5, 5, 5, 0.14);
+}
+
+.proof-step.complete .proof-dot {
+  background: var(--hood-green);
+}
+
+.proof-step-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.proof-step-top strong {
+  font-size: 15px;
+}
+
+.proof-step-top em {
+  border-radius: 999px;
+  background: #f0f3ef;
+  color: var(--muted);
+  padding: 4px 7px;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.proof-step.complete .proof-step-top em {
+  background: var(--mint);
+  color: #064d0a;
+}
+
+.proof-step p,
+.proof-step time,
+.proof-step a {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.proof-step a {
+  width: fit-content;
+  color: #064d0a;
+  font-weight: 760;
+  text-decoration: none;
+}
+
 .admin-trading-panel {
   display: grid;
   gap: 14px;

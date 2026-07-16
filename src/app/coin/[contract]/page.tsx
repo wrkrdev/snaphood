@@ -1,13 +1,13 @@
 import { notFound } from "next/navigation";
 import { Activity, ExternalLink, Flame, ShieldCheck, WalletCards } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
-import { getLaunchedCoin } from "@/lib/coins";
+import { getLaunchedCoin, getLaunchProof } from "@/lib/coins";
 import { isAdminEmail } from "@/lib/env";
 import { AdminTradingPanel } from "@/components/AdminTradingPanel";
 
 export default async function CoinPage({ params }: { params: Promise<{ contract: string }> }) {
   const { contract } = await params;
-  const coin = await getLaunchedCoin(contract);
+  const [coin, proof] = await Promise.all([getLaunchedCoin(contract), getLaunchProof(contract)]);
 
   if (!coin) {
     notFound();
@@ -108,6 +108,41 @@ export default async function CoinPage({ params }: { params: Promise<{ contract:
           ) : null}
         </dl>
       </section>
+
+      {proof ? (
+        <section className="proof-timeline">
+          <div className="proof-head">
+            <div>
+              <p className="eyebrow">public proof</p>
+              <h2>Audit Timeline</h2>
+            </div>
+            <a className="btn ghost small" href={`/api/coins/${coin.contractAddress}/proof`} target="_blank" rel="noreferrer">
+              <ExternalLink size={14} />
+              JSON
+            </a>
+          </div>
+          <ol>
+            {proof.timeline.map((item) => (
+              <li className={item.status === "complete" ? "proof-step complete" : "proof-step pending"} key={item.label}>
+                <span className="proof-dot" />
+                <div>
+                  <div className="proof-step-top">
+                    <strong>{item.label}</strong>
+                    <em>{item.status}</em>
+                  </div>
+                  {item.detail ? <p>{item.detail}</p> : null}
+                  {item.timestamp ? <time dateTime={item.timestamp}>{new Date(item.timestamp).toLocaleString()}</time> : null}
+                  {item.url ? (
+                    <a href={item.url} target="_blank" rel="noreferrer">
+                      {item.txHash ? "Open tx" : "Open proof"} <ExternalLink size={13} />
+                    </a>
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ol>
+        </section>
+      ) : null}
 
       {isAdmin ? (
         <AdminTradingPanel
