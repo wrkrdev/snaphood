@@ -41,6 +41,20 @@ if (requireCoin) {
   assert(first.contractAddress, "first coin should include a contract address");
   assert(first.profileImageUrl && first.bannerImageUrl, "first coin should include stored images");
 
+  const searchPayload = await checkJson(`/api/coins?query=${encodeURIComponent(first.ticker)}`, "coin search");
+  assert(searchPayload.filters?.query === first.ticker, "coin search should echo the query filter");
+  assert(
+    searchPayload.coins?.some((coin) => coin.contractAddress?.toLowerCase() === first.contractAddress.toLowerCase()),
+    "coin search should find the feed coin by ticker"
+  );
+
+  const tradablePayload = await checkJson("/api/coins?tradable=true", "tradable coin filter");
+  assert(tradablePayload.filters?.tradable === true, "tradable feed should echo the tradable filter");
+  assert(
+    tradablePayload.coins.every((coin) => coin.dexscreenerUrl || coin.poolAddress),
+    "tradable feed should only return coins with trading metadata"
+  );
+
   const chainStatsPayload = await checkJson(`/api/coins/stats?chainId=${first.chainId}`, "chain coin stats");
   assert(chainStatsPayload.stats?.filters?.chainId === first.chainId, "chain stats should echo the chain filter");
   assert(chainStatsPayload.stats?.totalLaunches >= 1, "chain stats should include at least the feed coin");

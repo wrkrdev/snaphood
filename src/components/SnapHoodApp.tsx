@@ -182,6 +182,17 @@ export default function SnapHoodApp() {
     void refreshDrafts();
   }, [user?.id]);
 
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      void refreshCoins({
+        query: search,
+        tradableOnly: feedTab === "tradable"
+      });
+    }, 250);
+
+    return () => window.clearTimeout(timeout);
+  }, [feedTab, search]);
+
   const allocationTotal = useMemo(
     () => form.tokenomics.allocation.reduce((sum, row) => sum + Number(row.percent || 0), 0),
     [form.tokenomics.allocation]
@@ -219,9 +230,13 @@ export default function SnapHoodApp() {
     setUser(data.user);
   }
 
-  async function refreshCoins() {
+  async function refreshCoins(filters: { query?: string; tradableOnly?: boolean } = {}) {
     try {
-      const response = await fetch("/api/coins");
+      const params = new URLSearchParams();
+      const query = filters.query?.trim();
+      if (query) params.set("query", query);
+      if (filters.tradableOnly) params.set("tradable", "true");
+      const response = await fetch(`/api/coins${params.size ? `?${params}` : ""}`);
       const data = (await response.json()) as { coins?: LaunchedCoin[] };
       setCoins(data.coins ?? []);
     } catch {
@@ -343,7 +358,10 @@ export default function SnapHoodApp() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not launch token.");
       setReceipt(data.launch);
-      void refreshCoins();
+      void refreshCoins({
+        query: search,
+        tradableOnly: feedTab === "tradable"
+      });
       void refreshStats();
       void refreshDrafts();
     } catch (caught) {
@@ -422,7 +440,10 @@ export default function SnapHoodApp() {
             <button
               className="btn ghost small"
               onClick={() => {
-                void refreshCoins();
+                void refreshCoins({
+                  query: search,
+                  tradableOnly: feedTab === "tradable"
+                });
                 void refreshStats();
               }}
               type="button"

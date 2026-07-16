@@ -232,6 +232,7 @@ Public APIs:
 
 - `GET /api/coins` — latest launched coins across configured Robinhood Chain environments.
 - `GET /api/coins?chainId=4663&limit=30` — bounded chain-specific feed for public mainnet views.
+- `GET /api/coins?query=SNAPG&tradable=true` — DB-backed ticker/name/contract search with optional tradable-only filtering.
 - `GET /api/coins/stats` — aggregate launchpad totals from persisted launch/trading metadata.
 - `GET /api/coins/stats?chainId=4663` — chain-specific aggregate totals for public network views.
 

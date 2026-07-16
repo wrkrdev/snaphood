@@ -46,7 +46,11 @@ type StatsRow = {
 
 const launchProofVersion = "snaphood.launch-proof.v1";
 
-export async function listLaunchedCoins(limit = 30, options: { chainId?: number } = {}) {
+export async function listLaunchedCoins(
+  limit = 30,
+  options: { chainId?: number; query?: string; tradableOnly?: boolean } = {}
+) {
+  const search = normalizeSearch(options.query);
   const result = await query<CoinRow>(
     `
       select d.id,
@@ -78,13 +82,29 @@ export async function listLaunchedCoins(limit = 30, options: { chainId?: number 
       where d.status = 'launched'
         and d.contract_address is not null
         and ($2::int is null or d.chain_id = $2)
+        and (
+          $3::text is null
+          or lower(d.name) like '%' || $3 || '%'
+          or lower(d.ticker) like '%' || $3 || '%'
+          or lower(d.contract_address) like '%' || $3 || '%'
+        )
+        and (
+          $4::boolean is not true
+          or t.pool_address is not null
+          or t.dexscreener_url is not null
+        )
       order by d.updated_at desc
       limit $1
     `,
-    [limit, options.chainId ?? null]
+    [limit, options.chainId ?? null, search, options.tradableOnly ?? false]
   );
 
   return result.rows.map(mapCoinRow);
+}
+
+function normalizeSearch(value: string | undefined) {
+  const normalized = value?.trim().toLowerCase().slice(0, 80);
+  return normalized || null;
 }
 
 export async function getLaunchedCoin(contractOrId: string) {
