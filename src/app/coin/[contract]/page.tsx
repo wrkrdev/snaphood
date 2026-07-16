@@ -125,6 +125,30 @@ export default async function CoinPage({ params }: { params: Promise<{ contract:
         </div>
       </section>
 
+      {!coin.poolAddress ? (
+        <section className="trade-status">
+          <div>
+            <p className="eyebrow">not tradable yet</p>
+            <h2>Pool needed for Dexscreener</h2>
+          </div>
+          <p>
+            This token contract is deployed on-chain, but it does not have a recorded Uniswap pool, liquidity position, or
+            indexer swap. Dexscreener usually appears after a real pool exists and indexing sees trading activity.
+          </p>
+        </section>
+      ) : !coin.dexscreenerUrl ? (
+        <section className="trade-status">
+          <div>
+            <p className="eyebrow">indexing pending</p>
+            <h2>Pool recorded, chart pending</h2>
+          </div>
+          <p>
+            A pool is recorded for this token, but Dexscreener has not returned a pair URL yet. Sync again after the indexer
+            sees the pool and swap activity.
+          </p>
+        </section>
+      ) : null}
+
       <section className="coin-ledger">
         <h2>Launch Proof</h2>
         <dl>

@@ -633,19 +633,19 @@ export default function SnapHoodApp() {
         <nav className="side-links">
           <a className="side-link active" href="#">
             <Home size={16} />
-            Home
+            <span>Home</span>
           </a>
           <a className="side-link" href="#explore">
             <Flame size={16} />
-            Explore
+            <span>Explore</span>
           </a>
           <a className="side-link" href="#create">
             <Rocket size={16} />
-            Create
+            <span>Create</span>
           </a>
           <a className="side-link" href="#stack">
             <Activity size={16} />
-            Stack
+            <span>Stack</span>
           </a>
         </nav>
         <div className="side-status">
@@ -803,7 +803,8 @@ export default function SnapHoodApp() {
                                   <span>Vol {compactUsd(pair?.volume?.h24)}</span>
                                 </div>
                                 <div className="coin-meta">
-                                  <span>{isTradable(coin) ? "tradable" : "deployed"}</span>
+                                  <span>{isTradable(coin) ? "tradable" : "deployed only"}</span>
+                                  {!isTradable(coin) ? <span>needs pool</span> : null}
                                   <span>chain {coin.chainId}</span>
                                   <span>{new Date(coin.updatedAt).toLocaleDateString()}</span>
                                 </div>
@@ -828,6 +829,8 @@ export default function SnapHoodApp() {
                             <a className="btn primary small" href={coin.dexscreenerUrl} target="_blank" rel="noreferrer">
                               Chart
                             </a>
+                          ) : !coin.poolAddress ? (
+                            <span className="trade-note">pool needed for chart</span>
                           ) : null}
                         </div>
                       </article>
