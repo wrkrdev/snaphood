@@ -22,6 +22,12 @@ type AdminResult = {
   dexscreenerUrl?: string;
 };
 
+type AdminResponse = {
+  status?: "pending";
+  result?: AdminResult;
+  error?: string;
+};
+
 export function AdminTradingPanel({ contractAddress, isTradable, hasIndexerSwap }: AdminTradingPanelProps) {
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState("");
@@ -50,10 +56,18 @@ export function AdminTradingPanel({ contractAddress, isTradable, hasIndexerSwap 
                 confirmation: execute ? confirmation : undefined
               })
       });
-      const data = await response.json();
+      const data = (await response.json()) as AdminResponse;
       if (!response.ok) throw new Error(data.error || "Admin action failed.");
-      setResult(data.result);
-      setMessage(action === "sync-dex" ? "Dexscreener synced." : execute ? "Transaction flow completed." : "Estimate ready.");
+      setResult(data.result ?? null);
+      setMessage(
+        action === "sync-dex"
+          ? data.status === "pending"
+            ? "Dexscreener has not indexed this pool yet."
+            : "Dexscreener synced."
+          : execute
+            ? "Transaction flow completed."
+            : "Estimate ready."
+      );
       if (execute) {
         setConfirmation("");
       }

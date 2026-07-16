@@ -18,10 +18,14 @@ export function DexSyncPanel({ contractAddress }: DexSyncPanelProps) {
     setUrl("");
     try {
       const response = await fetch(`/api/coins/${contractAddress}/trade/sync-dex`, { method: "POST" });
-      const data = (await response.json()) as { result?: { dexscreenerUrl?: string; pair?: unknown }; error?: string };
+      const data = (await response.json()) as {
+        status?: "pending";
+        result?: { dexscreenerUrl?: string; pair?: unknown };
+        error?: string;
+      };
       if (!response.ok || !data.result) throw new Error(data.error || "Could not sync Dexscreener.");
-      setUrl(data.result.dexscreenerUrl ?? "");
-      setMessage(data.result.pair ? "Dexscreener pair synced." : "Dexscreener URL recorded; pair data may still be indexing.");
+      setUrl(data.result.pair ? (data.result.dexscreenerUrl ?? "") : "");
+      setMessage(data.result.pair ? "Dexscreener pair synced." : "Dexscreener has not indexed this pool yet. Try again later.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not sync Dexscreener.");
     } finally {

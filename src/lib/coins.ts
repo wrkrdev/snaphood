@@ -309,7 +309,7 @@ export async function getLaunchProof(contractOrId: string): Promise<LaunchProof 
           status: "pending" as const,
           detail: "No indexer swap recorded yet"
         },
-    coin.dexscreenerUrl
+    coin.dexscreenerUrl && coin.dexscreenerPair
       ? {
           label: "Dexscreener synced",
           status: "complete" as const,

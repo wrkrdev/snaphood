@@ -37,6 +37,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ con
 
   try {
     const result = await fetchDexscreenerPair(coin.poolAddress);
+    if (!result.pair) {
+      return NextResponse.json({ status: "pending", result }, { status: 202 });
+    }
+
     await recordDexscreener({
       draftId: coin.id,
       dexscreenerUrl: result.dexscreenerUrl,

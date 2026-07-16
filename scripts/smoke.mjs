@@ -97,10 +97,16 @@ if (requireCoin) {
   assert(proof.proof.guardrails?.acknowledgements, "launch proof should include persisted guardrail acknowledgements");
   assert(proof.proof.events.some((event) => event.eventType === "trading.liquidity_seeded"), "launch proof should include liquidity event");
   assert(proof.proof.events.some((event) => event.eventType === "trading.indexer_swap"), "launch proof should include indexer swap event");
-  assert(proof.proof.events.some((event) => event.eventType === "trading.dexscreener_synced"), "launch proof should include Dexscreener sync event");
   assert(Array.isArray(proof.proof?.timeline), "launch proof should include a timeline");
   assert(proof.proof.timeline.some((item) => item.label === "Token deployed" && item.status === "complete"), "launch proof should include completed deployment");
-  assert(proof.proof.timeline.every((item) => item.status === "complete"), "seeded launch proof timeline should be complete");
+  const dexTimeline = proof.proof.timeline.find((item) => item.label === "Dexscreener synced");
+  assert(dexTimeline, "launch proof should include Dexscreener timeline state");
+  if (detail.coin?.dexscreenerPair) {
+    assert(proof.proof.events.some((event) => event.eventType === "trading.dexscreener_synced"), "indexed launch proof should include Dexscreener sync event");
+    assert(dexTimeline.status === "complete", "indexed launch proof should show Dexscreener complete");
+  } else {
+    assert(dexTimeline.status === "pending", "unindexed launch proof should keep Dexscreener pending");
+  }
   const repeatedProof = await checkJson(`/api/coins/${proofCoin.contractAddress}/proof`, "launch proof repeat");
   assert(repeatedProof.proof?.proofHash === proof.proof.proofHash, "launch proof fingerprint should be stable across reads");
 
@@ -108,7 +114,8 @@ if (requireCoin) {
   assert(tradable, "expected at least one tradable coin with pool or Dexscreener metadata");
 
   const coinPage = await checkPage(`/coin/${proofCoin.contractAddress}`, proofCoin.ticker);
-  assert(coinPage.includes(`${proofCoin.name} ($${proofCoin.ticker})`), "coin page should include token-specific metadata title");
+  assert(coinPage.includes(proofCoin.name.replace(/&/g, "&amp;")), "coin page should include token name metadata");
+  assert(coinPage.includes(`$${proofCoin.ticker}`), "coin page should include token ticker metadata");
   assert(coinPage.includes('property="og:title"'), "coin page should include Open Graph title metadata");
   assert(coinPage.includes('name="twitter:card"'), "coin page should include Twitter card metadata");
   assert(coinPage.includes("Tokenomics"), "coin page should include tokenomics");
