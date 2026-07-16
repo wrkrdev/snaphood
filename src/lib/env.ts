@@ -18,6 +18,7 @@ export const env = {
   imageModel: process.env.IMAGE_MODEL ?? "fal-ai/flux/schnell",
   falKey: process.env.FAL_KEY ?? "",
   falImageModel: process.env.FAL_IMAGE_MODEL ?? process.env.IMAGE_MODEL ?? "fal-ai/flux/schnell",
+  falImageEditModel: process.env.FAL_IMAGE_EDIT_MODEL ?? "fal-ai/flux-kontext/dev",
   wrkrStorageEnabled: process.env.WRKR_STORAGE_ENABLED === "true",
   wrkrStoragePublicUploads: process.env.WRKR_STORAGE_PUBLIC_UPLOADS === "true",
   robinhoodNetwork: process.env.ROBINHOOD_NETWORK ?? "testnet",

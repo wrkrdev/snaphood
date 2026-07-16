@@ -109,27 +109,34 @@ export function buildGeneratedImageUrls(originalImageUrl: string) {
   };
 }
 
-export async function generateBrandImages(draft: GeneratedDraft, originalImageUrl: string) {
+export async function generateBrandImages(draft: GeneratedDraft, originalImageUrl: string, sourceFile?: File) {
   if (!env.falKey) {
     return buildGeneratedImageUrls(originalImageUrl);
   }
 
+  const sourceImageUrl = await getFalSourceImageUrl(sourceFile, originalImageUrl);
   const [profile, banner] = await Promise.allSettled([
-    generateFalImage(
+    generateFalImageEdit(
       [
-        `A circular meme coin profile avatar for ${draft.name} with ticker ${draft.ticker}.`,
-        `Inspired by: ${draft.promptSummary}.`,
-        "Bold centered subject, Robinhood-inspired green and black accent palette, clean vector-poster energy, no official logos, no small text, no price claims."
+        `Transform the uploaded image into a playful meme coin profile avatar for ${draft.name}, ticker ${draft.ticker}.`,
+        "Keep the original snap immediately recognizable: preserve the main subject, pose, silhouette, and strongest color cues.",
+        `Meme angle: ${draft.promptSummary}.`,
+        "Add community-launch energy with expressive sticker-like styling, crisp lighting, fun props only when they fit the source image, and a green/black/white app palette.",
+        "No official logos, no readable text, no ticker letters, no price claims."
       ].join(" "),
-      { width: 512, height: 512 }
+      sourceImageUrl,
+      "1:1"
     ),
-    generateFalImage(
+    generateFalImageEdit(
       [
-        `A wide social banner for the meme token ${draft.name}, ticker ${draft.ticker}.`,
-        `Inspired by: ${draft.promptSummary}.`,
-        "Energetic brokerage-app style, green/black/white palette, playful but polished, room for UI text overlay, no official logos, no price claims."
+        `Remix the uploaded image into a wide social banner for the meme token ${draft.name}, ticker ${draft.ticker}.`,
+        "The original snap must remain the hero image and should be clearly recognizable.",
+        `Meme angle: ${draft.promptSummary}.`,
+        "Extend the scene into a playful community launch moment with confetti, sticker energy, subtle trading-app shapes, and open space for UI overlay.",
+        "Use a green/black/white accent palette. No official logos, no readable text, no ticker letters, no price claims."
       ].join(" "),
-      { width: 768, height: 432 }
+      sourceImageUrl,
+      "16:9"
     )
   ]);
 
@@ -137,6 +144,46 @@ export async function generateBrandImages(draft: GeneratedDraft, originalImageUr
     profileImageUrl: profile.status === "fulfilled" ? profile.value : originalImageUrl,
     bannerImageUrl: banner.status === "fulfilled" ? banner.value : originalImageUrl
   };
+}
+
+async function getFalSourceImageUrl(sourceFile: File | undefined, originalImageUrl: string) {
+  if (!sourceFile) return originalImageUrl;
+
+  const { fal } = await import("@fal-ai/client");
+  fal.config({ credentials: env.falKey });
+
+  try {
+    return await fal.storage.upload(sourceFile);
+  } catch {
+    return originalImageUrl;
+  }
+}
+
+async function generateFalImageEdit(prompt: string, imageUrl: string, resolutionMode: "1:1" | "16:9") {
+  const { fal } = await import("@fal-ai/client");
+  fal.config({ credentials: env.falKey });
+
+  const result = await fal.subscribe(env.falImageEditModel, {
+    input: {
+      prompt,
+      image_url: imageUrl,
+      num_inference_steps: 20,
+      guidance_scale: 2.5,
+      num_images: 1,
+      enable_safety_checker: true,
+      output_format: "jpeg",
+      acceleration: "none",
+      resolution_mode: resolutionMode
+    },
+    logs: false
+  });
+
+  const generatedImageUrl = (result.data as { images?: Array<{ url?: string }> }).images?.[0]?.url;
+  if (!generatedImageUrl) {
+    throw new Error("Fal did not return an edited image URL.");
+  }
+
+  return generatedImageUrl;
 }
 
 async function generateFalImage(prompt: string, imageSize: { width: number; height: number }) {

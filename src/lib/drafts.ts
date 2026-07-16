@@ -6,6 +6,7 @@ type DraftRow = {
   name: string;
   ticker: string;
   description: string;
+  prompt_summary: string | null;
   original_image_url: string;
   profile_image_url: string;
   banner_image_url: string;
@@ -25,6 +26,7 @@ export async function listUserDrafts(userId: string, limit = 8) {
              name,
              ticker,
              description,
+             prompt_summary,
              original_image_url,
              profile_image_url,
              banner_image_url,
@@ -52,6 +54,7 @@ export function mapTokenDraft(row: DraftRow | Record<string, unknown>): TokenDra
     name: String(row.name),
     ticker: String(row.ticker),
     description: String(row.description),
+    promptSummary: row.prompt_summary ? String(row.prompt_summary) : undefined,
     originalImageUrl: String(row.original_image_url),
     profileImageUrl: String(row.profile_image_url),
     bannerImageUrl: String(row.banner_image_url),

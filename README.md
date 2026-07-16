@@ -322,11 +322,13 @@ LLM_MODEL="gpt-5.6-luna"
 LLM_API_KEY="..."
 ```
 
-Fal image generation uses the budget/fast `fal-ai/flux/schnell` model by default:
+Fal image generation keeps the uploaded snap as the visual source. The text model remains available as a cheap fallback,
+while profile and banner art use an image-to-image edit model by default:
 
 ```bash
 FAL_KEY="..."
 FAL_IMAGE_MODEL="fal-ai/flux/schnell"
+FAL_IMAGE_EDIT_MODEL="fal-ai/flux-kontext/dev"
 ```
 
 ## Public Release Notes

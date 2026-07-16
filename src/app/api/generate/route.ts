@@ -40,7 +40,7 @@ export async function POST(request: Request) {
 
   try {
     const [upload, generated] = await Promise.all([saveUpload(file), generateDraftFromImage(file)]);
-    const images = await generateBrandImages(generated, upload.url);
+    const images = await generateBrandImages(generated, upload.url, file);
     const [profileImage, bannerImage] = await Promise.all([
       saveRemoteImage(images.profileImageUrl, "generated").catch(() => ({ url: upload.url })),
       saveRemoteImage(images.bannerImageUrl, "generated").catch(() => ({ url: upload.url }))

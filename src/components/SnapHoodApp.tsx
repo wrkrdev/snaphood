@@ -989,10 +989,14 @@ export default function SnapHoodApp() {
                 {draft ? (
                   <div className="stack">
                     <div className="token-preview">
-                      <div className="coin">{form.ticker || "SNAP"}</div>
+                      <div className="coin remix-coin">
+                        <img src={draft.profileImageUrl} alt="" />
+                      </div>
                       <div>
+                        <span className="token-preview-label">snap remix</span>
                         <h3>{form.name || "Untitled Token"}</h3>
                         <p>${form.ticker || "SNAP"} · {form.tokenomics.supply}</p>
+                        {draft.promptSummary ? <p className="meme-angle">{draft.promptSummary}</p> : null}
                   </div>
                   <div className="disclaimer">
                     {requiresWalletLaunch

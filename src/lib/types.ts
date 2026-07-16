@@ -13,6 +13,7 @@ export type TokenDraft = {
   name: string;
   ticker: string;
   description: string;
+  promptSummary?: string;
   originalImageUrl: string;
   profileImageUrl: string;
   bannerImageUrl: string;
