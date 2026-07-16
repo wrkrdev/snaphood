@@ -127,6 +127,7 @@ async function checkReleaseDocs() {
     "Disable demo auth",
     "NEXT_PUBLIC_APP_URL",
     "Enable Wrkr storage",
+    "creator's connected wallet",
     "dedicated low-balance deployer wallet",
     "Avoid Robinhood logos"
   ]) {
@@ -165,6 +166,17 @@ async function checkAdminExecutionGuardrails() {
   includesOrFail(completeRoute, "reviewed SnapHood token artifact", "wallet complete route", "Wallet launch completion checks reviewed bytecode.");
   includesOrFail(completeRoute, "Deployed token supply was not minted to the creator wallet", "wallet complete route", "Wallet launch completion verifies creator token balance.");
 
+  const tradePrepareRoute = await readText("src/app/api/coins/[contract]/trade/prepare/route.ts");
+  includesOrFail(tradePrepareRoute, "planUserWalletLiquidity", "wallet trade prepare route", "Public trading setup returns user-wallet liquidity transactions.");
+  includesOrFail(tradePrepareRoute, "Connect the creator wallet", "wallet trade prepare route", "Trading setup requires the creator wallet.");
+
+  const tradeCompleteRoute = await readText("src/app/api/coins/[contract]/trade/complete/route.ts");
+  includesOrFail(tradeCompleteRoute, "readPositionId", "wallet trade complete route", "Trading completion reads the LP position from the mint receipt.");
+  includesOrFail(tradeCompleteRoute, "was not sent by the creator wallet", "wallet trade complete route", "Trading completion checks wallet sender.");
+
+  const tradeSyncRoute = await readText("src/app/api/coins/[contract]/trade/sync-dex/route.ts");
+  includesOrFail(tradeSyncRoute, "fetchDexscreenerPair", "wallet trade sync route", "Public Dexscreener sync fetches pair metadata.");
+
   const meRoute = await readText("src/app/api/me/route.ts");
   includesOrFail(meRoute, "isAdminEmail", "session route", "Session endpoint exposes a non-secret admin flag for UI gating.");
 
@@ -173,6 +185,10 @@ async function checkAdminExecutionGuardrails() {
   includesOrFail(app, "Launch from wallet", "SnapHoodApp", "Client launch button communicates user-wallet launch mode.");
   includesOrFail(app, "/api/launch/prepare", "SnapHoodApp", "Client launch flow prepares a user-wallet deployment.");
   includesOrFail(app, "/api/launch/complete", "SnapHoodApp", "Client launch flow completes a verified user-wallet deployment.");
+
+  const creatorTradingPanel = await readText("src/components/CreatorTradingPanel.tsx");
+  includesOrFail(creatorTradingPanel, "/trade/prepare", "CreatorTradingPanel", "Creator panel prepares wallet liquidity.");
+  includesOrFail(creatorTradingPanel, "/trade/complete", "CreatorTradingPanel", "Creator panel completes verified wallet liquidity.");
 
   const guard = await readText("src/lib/admin-execution.ts");
   includesOrFail(guard, "EXECUTE_LIVE_TRADE", "admin execution guard", "Live trading confirmation phrase is defined.");

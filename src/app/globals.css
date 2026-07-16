@@ -1225,6 +1225,18 @@ h1 {
   line-height: 1.5;
 }
 
+.sync-dex-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.sync-dex-body p {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
 .detail-stat {
   display: grid;
   gap: 6px;
@@ -1494,13 +1506,18 @@ h1 {
   text-decoration: none;
 }
 
-.admin-trading-panel {
+.admin-trading-panel,
+.creator-trading-panel {
   display: grid;
   gap: 14px;
   border: 1px solid rgba(5, 5, 5, 0.1);
   border-radius: 8px;
   background: #fff;
   padding: 18px;
+}
+
+.creator-trading-panel {
+  border-color: rgba(0, 200, 5, 0.24);
 }
 
 .admin-trading-head {
@@ -1578,12 +1595,28 @@ h1 {
   font-size: 13px;
 }
 
+.admin-result strong a {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+  color: #064d0a;
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+
 .admin-result ul {
   display: grid;
   gap: 8px;
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.trade-input-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .stack-page {
@@ -1826,7 +1859,8 @@ h1 {
 
   .coin-detail-grid,
   .coin-ledger div,
-  .stack-grid {
+  .stack-grid,
+  .trade-input-grid {
     grid-template-columns: 1fr;
   }
 

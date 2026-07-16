@@ -28,6 +28,7 @@ Before making SnapHood public:
 - Review `contracts/SnapHoodToken.sol` and keep `npm run contract:verify` green.
 - Deploy to Robinhood Chain testnet before mainnet.
 - Confirm public token launches use the creator's connected wallet for deployment gas and token ownership.
-- Keep liquidity and indexer-swap execution admin-gated with a dry-run/confirmation step.
+- Confirm public liquidity setup uses the creator's connected wallet and records pool metadata only after receipt verification.
+- Keep server-wallet liquidity and indexer-swap execution admin-gated with a dry-run/confirmation step.
 - Use a dedicated low-balance deployer wallet with no unrelated assets only for admin server-wallet fallback and admin trading operations.
 - Avoid Robinhood logos, proprietary marks, and any claim that the app is official.

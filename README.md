@@ -199,6 +199,13 @@ The verifier starts two links for the same email and confirms the older link is 
 ## Trading / Liquidity
 
 SnapHood can make a deployed token technically tradable by seeding a Uniswap v3 pool on Robinhood Chain mainnet.
+For public user launches, this is a creator-wallet action: open the coin page, connect the same wallet that launched the
+token, estimate the liquidity plan, then approve the wallet prompts to wrap ETH, approve WETH, approve the token,
+create/initialize the pool when needed, and mint the liquidity position. The server records pool metadata only after it
+verifies the successful wallet transactions on-chain.
+
+After a pool exists, use the coin page's Dexscreener sync action. Dexscreener may still need a few minutes, and often a
+small swap, before it returns full pair data.
 
 The current proof pool is:
 
@@ -235,10 +242,16 @@ Sync Dexscreener metadata into Postgres:
 npm run dex:sync
 ```
 
-Admins can also operate the same flow from the app. Sign in with an email listed in
+Admins can also operate a server-wallet fallback from the app. Sign in with an email listed in
 `SNAPHOOD_ADMIN_EMAILS`, open `/coin/<contract>`, then use the Trading Operations
 panel. Every live-spending action has a dry-run estimate button and requires an
 explicit browser confirmation before `execute: true` is sent.
+
+Public creator-wallet API routes:
+
+- `POST /api/coins/<contract>/trade/prepare` — estimate and return wallet transactions for Uniswap v3 liquidity.
+- `POST /api/coins/<contract>/trade/complete` — verify wallet transaction receipts and record pool/LP metadata.
+- `POST /api/coins/<contract>/trade/sync-dex` — fetch and cache Dexscreener metadata after a pool exists.
 
 Admin API routes:
 

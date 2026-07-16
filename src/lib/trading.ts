@@ -17,9 +17,9 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import { env } from "@/lib/env";
 
-const zeroAddress = "0x0000000000000000000000000000000000000000";
+export const zeroAddress = "0x0000000000000000000000000000000000000000";
 
-const erc20Abi = [
+export const erc20Abi = [
   {
     type: "function",
     name: "approve",
@@ -49,7 +49,7 @@ const erc20Abi = [
   }
 ] as const;
 
-const wethAbi = [
+export const wethAbi = [
   ...erc20Abi,
   {
     type: "function",
@@ -60,7 +60,7 @@ const wethAbi = [
   }
 ] as const;
 
-const factoryAbi = [
+export const factoryAbi = [
   {
     type: "function",
     name: "getPool",
@@ -74,7 +74,7 @@ const factoryAbi = [
   }
 ] as const;
 
-const positionManagerAbi = [
+export const positionManagerAbi = [
   {
     type: "function",
     name: "createAndInitializePoolIfNecessary",
@@ -128,7 +128,7 @@ const positionManagerAbi = [
   }
 ] as const;
 
-const routerAbi = [
+export const routerAbi = [
   {
     type: "function",
     name: "exactInputSingle",
@@ -157,6 +157,16 @@ type TradingStep = {
   to: Address;
   value?: bigint;
   data: Hex;
+};
+
+export type PublicTradingStep = {
+  label: string;
+  to: Address;
+  value: string;
+  data: Hex;
+  estimatedGas?: string | null;
+  estimable: boolean;
+  reason?: string;
 };
 
 export type ExecutedStep = {
@@ -428,6 +438,154 @@ export async function planOrRunIndexerSwap(coin: TradingCoinInput, options: Omit
   };
 }
 
+export async function planUserWalletLiquidity(
+  coin: TradingCoinInput,
+  options: TradingOptions & { creatorWallet: string }
+) {
+  const ctx = getReadOnlyTradingContext();
+  const account = getAddress(options.creatorWallet);
+  const token = getAddress(coin.contractAddress);
+  const decimals = coin.decimals;
+  const tokenAmountLabel = options.tokenAmount ?? env.liquidityTokenAmount;
+  const ethAmountLabel = options.ethAmount ?? env.liquidityEthAmount;
+  const tokenAmount = parseUnits(tokenAmountLabel.replace(/,/g, ""), decimals);
+  const ethAmount = parseEther(ethAmountLabel);
+  const token0 = compareAddresses(ctx.weth, token) < 0 ? ctx.weth : token;
+  const token1 = token0 === ctx.weth ? token : ctx.weth;
+  const amount0Desired = token0 === ctx.weth ? ethAmount : tokenAmount;
+  const amount1Desired = token0 === ctx.weth ? tokenAmount : ethAmount;
+  const sqrtPriceX96 = sqrt((amount1Desired << 192n) / amount0Desired);
+  const tickSpacing = getTickSpacing(ctx.fee);
+  const tickLower = Math.ceil(-887272 / tickSpacing) * tickSpacing;
+  const tickUpper = Math.floor(887272 / tickSpacing) * tickSpacing;
+  const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 30);
+
+  const [nativeBalance, tokenBalance, wethBalance, tokenAllowance, wethAllowance, existingPool] = await Promise.all([
+    ctx.publicClient.getBalance({ address: account }),
+    ctx.publicClient.readContract({ address: token, abi: erc20Abi, functionName: "balanceOf", args: [account] }),
+    ctx.publicClient.readContract({ address: ctx.weth, abi: erc20Abi, functionName: "balanceOf", args: [account] }),
+    ctx.publicClient.readContract({
+      address: token,
+      abi: erc20Abi,
+      functionName: "allowance",
+      args: [account, ctx.positionManager]
+    }),
+    ctx.publicClient.readContract({
+      address: ctx.weth,
+      abi: erc20Abi,
+      functionName: "allowance",
+      args: [account, ctx.positionManager]
+    }),
+    ctx.publicClient.readContract({
+      address: ctx.factory,
+      abi: factoryAbi,
+      functionName: "getPool",
+      args: [token, ctx.weth, ctx.fee]
+    })
+  ]);
+
+  if (tokenBalance < tokenAmount) {
+    throw new Error(
+      `Not enough ${coin.ticker}. Need ${formatUnits(tokenAmount, decimals)}, have ${formatUnits(tokenBalance, decimals)}.`
+    );
+  }
+
+  const steps: TradingStep[] = [];
+  if (wethBalance < ethAmount) {
+    steps.push({
+      label: "wrap ETH to WETH",
+      to: ctx.weth,
+      value: ethAmount - wethBalance,
+      data: encodeFunctionData({ abi: wethAbi, functionName: "deposit" })
+    });
+  }
+
+  if (wethAllowance < ethAmount) {
+    steps.push({
+      label: "approve WETH",
+      to: ctx.weth,
+      data: encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [ctx.positionManager, ethAmount] })
+    });
+  }
+
+  if (tokenAllowance < tokenAmount) {
+    steps.push({
+      label: `approve ${coin.ticker}`,
+      to: token,
+      data: encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [ctx.positionManager, tokenAmount] })
+    });
+  }
+
+  if (existingPool === zeroAddress) {
+    steps.push({
+      label: "create and initialize pool",
+      to: ctx.positionManager,
+      data: encodeFunctionData({
+        abi: positionManagerAbi,
+        functionName: "createAndInitializePoolIfNecessary",
+        args: [token0, token1, ctx.fee, sqrtPriceX96]
+      })
+    });
+  }
+
+  steps.push({
+    label: "mint liquidity position",
+    to: ctx.positionManager,
+    data: encodeFunctionData({
+      abi: positionManagerAbi,
+      functionName: "mint",
+      args: [
+        {
+          token0,
+          token1,
+          fee: ctx.fee,
+          tickLower,
+          tickUpper,
+          amount0Desired,
+          amount1Desired,
+          amount0Min: 0n,
+          amount1Min: 0n,
+          recipient: account,
+          deadline
+        }
+      ]
+    })
+  });
+
+  const dryRun = await estimatePublicSteps(ctx, account, steps, nativeBalance);
+  return {
+    account,
+    chain: {
+      id: env.robinhoodChainId,
+      name: "Robinhood Chain",
+      rpcUrl: env.robinhoodRpcUrl,
+      explorerUrl: env.robinhoodBlockExplorerUrl,
+      nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 }
+    },
+    token,
+    weth: ctx.weth,
+    factory: ctx.factory,
+    positionManager: ctx.positionManager,
+    fee: ctx.fee,
+    token0,
+    token1,
+    tickLower,
+    tickUpper,
+    nativeBalanceEth: formatEther(nativeBalance),
+    tokenBalance: formatUnits(tokenBalance, decimals),
+    wethBalanceEth: formatEther(wethBalance),
+    tokenAmount: tokenAmountLabel,
+    ethAmount: ethAmountLabel,
+    existingPool,
+    steps: dryRun.steps,
+    gasPriceWei: dryRun.gasPrice.toString(),
+    estimatedGas: dryRun.estimatedGas.toString(),
+    estimatedGasCostEth: formatEther(dryRun.estimatedGasCost),
+    requiredNativeEth: formatEther(dryRun.requiredNative),
+    enoughNative: nativeBalance > dryRun.requiredNative
+  };
+}
+
 export async function fetchDexscreenerPair(poolAddress: string) {
   const pool = getAddress(poolAddress);
   const url = `https://api.dexscreener.com/latest/dex/pairs/robinhood/${pool}`;
@@ -479,6 +637,37 @@ function getTradingContext() {
     router: getAddress(env.uniswapV3SwapRouter),
     fee: env.uniswapV3Fee
   };
+}
+
+export function getReadOnlyTradingContext() {
+  if (!env.robinhoodRpcUrl) {
+    throw new Error("ROBINHOOD_RPC_URL is required for trading operations.");
+  }
+
+  if (env.robinhoodChainId !== 4663) {
+    throw new Error(`Refusing live trading on chain ${env.robinhoodChainId}; expected Robinhood Chain mainnet 4663.`);
+  }
+
+  const chain = defineChain({
+    id: env.robinhoodChainId,
+    name: "Robinhood Chain",
+    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+    rpcUrls: { default: { http: [env.robinhoodRpcUrl] } },
+    blockExplorers: { default: { name: "Robinhood Blockscout", url: env.robinhoodBlockExplorerUrl } }
+  });
+
+  return {
+    publicClient: createPublicClient({ chain, transport: http(env.robinhoodRpcUrl) }),
+    weth: getAddress(env.robinhoodWethAddress),
+    factory: getAddress(env.uniswapV3Factory),
+    positionManager: getAddress(env.uniswapV3PositionManager),
+    router: getAddress(env.uniswapV3SwapRouter),
+    fee: env.uniswapV3Fee
+  };
+}
+
+export function readPositionId(receipt: TransactionReceipt, positionManager: Address, recipient: Address) {
+  return readLiquidityPositionId(receipt, positionManager, recipient);
 }
 
 async function estimateSteps(
@@ -561,7 +750,7 @@ async function executeSteps(ctx: ReturnType<typeof getTradingContext>, steps: Tr
   return { executed, positionId };
 }
 
-function readPositionId(receipt: TransactionReceipt, positionManager: Address, recipient: Address) {
+function readLiquidityPositionId(receipt: TransactionReceipt, positionManager: Address, recipient: Address) {
   const logs = parseEventLogs({
     abi: positionManagerAbi,
     logs: receipt.logs,
@@ -575,6 +764,60 @@ function readPositionId(receipt: TransactionReceipt, positionManager: Address, r
   );
 
   return transfer?.args.tokenId?.toString();
+}
+
+async function estimatePublicSteps(
+  ctx: ReturnType<typeof getReadOnlyTradingContext>,
+  account: Address,
+  steps: TradingStep[],
+  nativeBalance: bigint
+) {
+  const gasPrice = await ctx.publicClient.getGasPrice();
+  let estimatedGas = 0n;
+  const estimatedSteps: PublicTradingStep[] = [];
+
+  for (const step of steps) {
+    try {
+      const gas = await ctx.publicClient.estimateGas({
+        account,
+        to: step.to,
+        value: step.value ?? 0n,
+        data: step.data
+      });
+      estimatedGas += gas;
+      estimatedSteps.push({
+        label: step.label,
+        to: step.to,
+        value: (step.value ?? 0n).toString(),
+        data: step.data,
+        estimatedGas: gas.toString(),
+        estimable: true
+      });
+    } catch (error) {
+      estimatedSteps.push({
+        label: step.label,
+        to: step.to,
+        value: (step.value ?? 0n).toString(),
+        data: step.data,
+        estimatedGas: null,
+        estimable: false,
+        reason: error instanceof Error ? error.message : "Gas estimate failed."
+      });
+    }
+  }
+
+  const estimatedGasCost = estimatedGas * gasPrice;
+  const requiredNative =
+    estimatedGasCost + steps.reduce((sum, step) => sum + (step.value ?? 0n), 0n);
+
+  return {
+    gasPrice,
+    estimatedGas,
+    estimatedGasCost,
+    requiredNative,
+    enoughNative: nativeBalance > requiredNative,
+    steps: estimatedSteps
+  };
 }
 
 function getTickSpacing(fee: number) {

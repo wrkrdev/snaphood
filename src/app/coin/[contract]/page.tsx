@@ -5,6 +5,8 @@ import { getCurrentUser } from "@/lib/auth";
 import { getLaunchedCoin, getLaunchProof } from "@/lib/coins";
 import { env, isAdminEmail } from "@/lib/env";
 import { AdminTradingPanel } from "@/components/AdminTradingPanel";
+import { CreatorTradingPanel } from "@/components/CreatorTradingPanel";
+import { DexSyncPanel } from "@/components/DexSyncPanel";
 import type { Tokenomics } from "@/lib/types";
 
 export async function generateMetadata({ params }: { params: Promise<{ contract: string }> }): Promise<Metadata> {
@@ -126,27 +128,27 @@ export default async function CoinPage({ params }: { params: Promise<{ contract:
       </section>
 
       {!coin.poolAddress ? (
-        <section className="trade-status">
-          <div>
-            <p className="eyebrow">not tradable yet</p>
-            <h2>Pool needed for Dexscreener</h2>
-          </div>
-          <p>
-            This token contract is deployed on-chain, but it does not have a recorded Uniswap pool, liquidity position, or
-            indexer swap. Dexscreener usually appears after a real pool exists and indexing sees trading activity.
-          </p>
-        </section>
+        <>
+          <section className="trade-status">
+            <div>
+              <p className="eyebrow">not tradable yet</p>
+              <h2>Pool needed for Dexscreener</h2>
+            </div>
+            <p>
+              This token contract is deployed on-chain, but it does not have a recorded Uniswap pool, liquidity position, or
+              indexer swap. The creator wallet can add token and ETH liquidity below; Dexscreener usually appears after a
+              real pool exists and indexing sees trading activity.
+            </p>
+          </section>
+          <CreatorTradingPanel
+            contractAddress={coin.contractAddress}
+            ticker={coin.ticker}
+            chainId={coin.chainId}
+            explorerUrl={coin.explorerUrl}
+          />
+        </>
       ) : !coin.dexscreenerUrl ? (
-        <section className="trade-status">
-          <div>
-            <p className="eyebrow">indexing pending</p>
-            <h2>Pool recorded, chart pending</h2>
-          </div>
-          <p>
-            A pool is recorded for this token, but Dexscreener has not returned a pair URL yet. Sync again after the indexer
-            sees the pool and swap activity.
-          </p>
-        </section>
+        <DexSyncPanel contractAddress={coin.contractAddress} />
       ) : null}
 
       <section className="coin-ledger">
