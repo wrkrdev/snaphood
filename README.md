@@ -59,6 +59,15 @@ npm run verify:smoke
 demo or magic-link auth behavior, and unauthenticated admin-route protection. It defaults to
 `http://localhost:3000`; override with `SNAPHOOD_SMOKE_BASE_URL`.
 
+To also verify the upload-to-draft flow, run:
+
+```bash
+SNAPHOOD_SMOKE_GENERATE=true npm run verify:smoke
+```
+
+That path signs in, uploads a generated 1x1 PNG, and checks that `/api/generate` returns persisted draft metadata and image URLs.
+It may call configured AI/image providers, so keep it opt-in for low-cost routine checks.
+
 ## Launch Modes
 
 `TOKEN_LAUNCH_MODE=demo` is the default. It creates a realistic launch receipt without broadcasting a transaction.

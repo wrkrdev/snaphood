@@ -1,8 +1,10 @@
 const baseUrl = (process.env.SNAPHOOD_SMOKE_BASE_URL ?? "http://localhost:3000").replace(/\/$/, "");
 const requireCoin = process.env.SNAPHOOD_SMOKE_REQUIRE_COIN !== "false";
+const verifyGenerate = process.env.SNAPHOOD_SMOKE_GENERATE === "true";
 const syntheticIp = `198.51.100.${Math.floor(Math.random() * 200) + 1}`;
 
 const checks = [];
+const cookieJar = [];
 
 await checkPage("/", "SnapHood");
 await checkPage("/stack", "Wrkr proof");
@@ -43,6 +45,16 @@ if (health.readiness?.demoAuthEnabled) {
   assert(authPayload.email, "magic-link auth should return normalized email");
 }
 
+if (verifyGenerate) {
+  assert(health.readiness?.demoAuthEnabled, "generate smoke currently requires demo auth so the script can hold a session");
+  const generated = await postImage("/api/generate");
+  const draft = generated.draft;
+  assert(draft?.id, "generate response should include a draft id");
+  assert(draft?.name && draft?.ticker && draft?.description, "generated draft should include token metadata");
+  assert(draft?.originalImageUrl && draft?.profileImageUrl && draft?.bannerImageUrl, "generated draft should include stored image URLs");
+  assert(Array.isArray(draft?.tokenomics?.allocation), "generated draft should include tokenomics allocation");
+}
+
 const adminResponse = await fetch(`${baseUrl}/api/admin/coins/${coinsPayload.coins?.[0]?.contractAddress ?? "0x0000000000000000000000000000000000000000"}/sync-dex`, {
   method: "POST",
   headers: {
@@ -68,7 +80,7 @@ console.log(
 
 async function checkPage(path, expectedText) {
   const response = await fetch(`${baseUrl}${path}`, {
-    headers: { "x-forwarded-for": syntheticIp }
+    headers: withCookies({ "x-forwarded-for": syntheticIp })
   });
   const text = await response.text();
   assert(response.ok, `${path} should return 2xx, got ${response.status}`);
@@ -78,7 +90,7 @@ async function checkPage(path, expectedText) {
 
 async function checkJson(path, name) {
   const response = await fetch(`${baseUrl}${path}`, {
-    headers: { "x-forwarded-for": syntheticIp }
+    headers: withCookies({ "x-forwarded-for": syntheticIp })
   });
   const text = await response.text();
   assert(response.ok, `${path} should return 2xx, got ${response.status}: ${text}`);
@@ -90,17 +102,66 @@ async function checkJson(path, name) {
 async function postJson(path, body) {
   const response = await fetch(`${baseUrl}${path}`, {
     method: "POST",
-    headers: {
+    headers: withCookies({
       "content-type": "application/json",
       "x-forwarded-for": syntheticIp
-    },
+    }),
     body: JSON.stringify(body)
   });
+  captureCookies(response);
   const text = await response.text();
   assert(response.ok, `${path} should return 2xx, got ${response.status}: ${text}`);
   const payload = JSON.parse(text);
   checks.push({ name: path, status: response.status });
   return payload;
+}
+
+async function postImage(path) {
+  const formData = new FormData();
+  formData.append("image", new Blob([tinyPng()], { type: "image/png" }), "smoke-green-dot.png");
+
+  const response = await fetch(`${baseUrl}${path}`, {
+    method: "POST",
+    headers: withCookies({ "x-forwarded-for": syntheticIp }),
+    body: formData
+  });
+  captureCookies(response);
+  const text = await response.text();
+  assert(response.ok, `${path} should return 2xx, got ${response.status}: ${text}`);
+  const payload = JSON.parse(text);
+  checks.push({ name: path, status: response.status });
+  return payload;
+}
+
+function withCookies(headers) {
+  if (cookieJar.length) {
+    return {
+      ...headers,
+      cookie: cookieJar.join("; ")
+    };
+  }
+
+  return headers;
+}
+
+function captureCookies(response) {
+  for (const cookie of response.headers.getSetCookie?.() ?? []) {
+    const value = cookie.split(";")[0];
+    const name = value.split("=")[0];
+    const existingIndex = cookieJar.findIndex((entry) => entry.startsWith(`${name}=`));
+    if (existingIndex >= 0) {
+      cookieJar[existingIndex] = value;
+    } else {
+      cookieJar.push(value);
+    }
+  }
+}
+
+function tinyPng() {
+  return Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC",
+    "base64"
+  );
 }
 
 function assert(condition, message) {
