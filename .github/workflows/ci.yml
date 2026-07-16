@@ -31,6 +31,9 @@ jobs:
       - name: Check public env example
         run: npm run verify:env-example
 
+      - name: Verify contract artifact
+        run: npm run contract:verify
+
       - name: Audit dependencies
         run: npm audit --audit-level=high
 

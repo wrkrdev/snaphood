@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "next lint",
     "contract:compile": "node scripts/compile-contract.mjs",
+    "contract:verify": "npm run contract:compile && git diff --exit-code src/generated/SnapHoodToken.json",
     "liquidity:seed": "node scripts/seed-uniswap-v3-liquidity.mjs",
     "swap:smoke": "node scripts/swap-uniswap-v3-smoke.mjs",
     "verify:env-example": "node scripts/check-env-example.mjs",

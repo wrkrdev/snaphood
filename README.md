@@ -51,6 +51,7 @@ With the app running locally, verify the full demo surface:
 ```bash
 npm run db:migrate
 npm run verify:env-example
+npm run contract:verify
 npm run build
 npm audit --audit-level=high
 npm run verify:readiness

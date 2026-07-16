@@ -12,7 +12,7 @@ Before making SnapHood public:
 - Schedule `SNAPHOOD_MAINTENANCE_DRY_RUN=false npm run db:maintenance` with `crontab`.
 - Keep default `TOKEN_LAUNCH_MODE=demo` in `.env.example`.
 - Verify launch acknowledgements cover jurisdiction, no-investment-value, content rights, and no-affiliation guardrails.
-- Review `contracts/SnapHoodToken.sol` and use a reproducible compile/deploy script.
+- Review `contracts/SnapHoodToken.sol` and keep `npm run contract:verify` green.
 - Deploy to Robinhood Chain testnet before mainnet.
 - Keep liquidity and indexer-swap execution admin-gated with a dry-run/confirmation step.
 - Use a dedicated deployer wallet with low funds and no unrelated assets.
