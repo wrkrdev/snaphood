@@ -38,6 +38,7 @@ async function checkGitignore() {
   includesOrFail(gitignore, "!.env.example", ".gitignore", "Public env template remains tracked.");
   includesOrFail(gitignore, "public/uploads/", ".gitignore", "Local generated public uploads are ignored.");
   includesOrFail(gitignore, "data/uploads/", ".gitignore", "Local generated data uploads are ignored.");
+  includesOrFail(gitignore, "logs/", ".gitignore", "Runtime logs and PID files are ignored.");
 }
 
 async function checkPackageScripts() {
@@ -53,6 +54,10 @@ async function checkPackageScripts() {
     "verify:readiness",
     "verify:public-release",
     "contract:verify",
+    "prod:start",
+    "prod:stop",
+    "prod:restart",
+    "prod:status",
     "db:migrate",
     "db:seed",
     "db:maintenance"
@@ -110,6 +115,9 @@ async function checkReleaseDocs() {
     "Rotate any key",
     "npm run verify:secrets",
     "npm run verify:readiness -- --profile=public",
+    "npm run prod:start",
+    "npm run prod:restart",
+    "npm run prod:status",
     "Disable demo auth",
     "NEXT_PUBLIC_APP_URL",
     "Enable Wrkr storage",

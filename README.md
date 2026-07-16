@@ -45,6 +45,25 @@ npm run dev -- --hostname 0.0.0.0
 
 Open `http://localhost:3000`.
 
+## Production Runtime
+
+Use `next dev` only for local development. Public Wrkr exposure should point at the production server:
+
+```bash
+npm run build
+npm run prod:start
+npm run prod:status
+```
+
+The runtime helper writes `logs/server.pid` and appends to `logs/server.log`, both ignored by git. It waits for
+`/api/health` before reporting success, so a bad environment fails fast. After a new `npm run build`, restart the
+running production process so it picks up the fresh `.next` output:
+
+```bash
+npm run prod:restart
+npm run prod:stop
+```
+
 ## Verification
 
 With the app running locally, verify the full demo surface:
