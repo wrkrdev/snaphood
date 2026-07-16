@@ -18,6 +18,7 @@ Before making SnapHood public:
 - Verify Redis-backed rate limits are active for auth, generation, launch, and admin trading endpoints.
 - Enable Wrkr storage with public asset URLs for uploaded and generated coin media.
 - Run `npm run build && npm run prod:start` for first boot, or `npm run build && npm run prod:restart` for an existing process, then confirm `npm run prod:status` reports healthy.
+- Schedule `npm run prod:ensure` with `crontab` as the production process watchdog.
 - Schedule `SNAPHOOD_MAINTENANCE_DRY_RUN=false npm run db:maintenance` with `crontab`.
 - Keep default `TOKEN_LAUNCH_MODE=demo` in `.env.example`.
 - Verify launch acknowledgements cover jurisdiction, no-investment-value, content rights, and no-affiliation guardrails.

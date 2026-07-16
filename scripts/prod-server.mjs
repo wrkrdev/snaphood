@@ -16,6 +16,9 @@ switch (command) {
   case "start":
     await start();
     break;
+  case "ensure":
+    await ensure();
+    break;
   case "stop":
     await stop();
     break;
@@ -27,7 +30,7 @@ switch (command) {
     await status();
     break;
   default:
-    console.error("Usage: node scripts/prod-server.mjs <start|stop|restart|status>");
+    console.error("Usage: node scripts/prod-server.mjs <start|ensure|stop|restart|status>");
     process.exit(1);
 }
 
@@ -104,6 +107,30 @@ async function stop(options = {}) {
   await stopProcessGroup(runtime.pid);
   rmSync(pidPath, { force: true });
   console.log(JSON.stringify({ ok: true, running: false, stoppedPid: runtime.pid }, null, 2));
+}
+
+async function ensure() {
+  const runtime = readPidFile();
+  if (!runtime) {
+    await start();
+    return;
+  }
+
+  if (!isProcessAlive(runtime.pid)) {
+    rmSync(pidPath, { force: true });
+    await start();
+    return;
+  }
+
+  const health = await fetchHealth(runtime.healthUrl);
+  if (health.ok && health.body?.ok === true) {
+    await printStatus(runtime);
+    return;
+  }
+
+  console.error(`Managed SnapHood server PID ${runtime.pid} is unhealthy. Restarting.`);
+  await stop({ quietIfMissing: true });
+  await start();
 }
 
 async function status() {

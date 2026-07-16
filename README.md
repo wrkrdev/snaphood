@@ -61,7 +61,14 @@ running production process so it picks up the fresh `.next` output:
 
 ```bash
 npm run prod:restart
+npm run prod:ensure
 npm run prod:stop
+```
+
+On the Wrkr workstation, keep the process alive with cron:
+
+```cron
+* * * * * cd /home/wrkr/robinhood && npm run prod:ensure >> /home/wrkr/robinhood/logs/watchdog.log 2>&1 # snaphood-watchdog
 ```
 
 ## Verification
@@ -274,7 +281,11 @@ SNAPHOOD_MAINTENANCE_DRY_RUN=false npm run db:maintenance
 ```
 
 The job never deletes launched coins. It only removes expired sessions, old used/expired auth challenges, and token drafts that are still
-`status='draft'` after `SNAPHOOD_STALE_DRAFT_RETENTION_DAYS`. On Wrkr, schedule it with `crontab` once the app is public.
+`status='draft'` after `SNAPHOOD_STALE_DRAFT_RETENTION_DAYS`. On Wrkr, schedule it with `crontab` once the app is public:
+
+```cron
+17 3 * * * cd /home/wrkr/robinhood && SNAPHOOD_MAINTENANCE_DRY_RUN=false npm run db:maintenance >> /home/wrkr/robinhood/logs/maintenance.log 2>&1 # snaphood-maintenance
+```
 
 ## AI
 

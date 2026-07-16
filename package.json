@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "prod:start": "node scripts/prod-server.mjs start",
+    "prod:ensure": "node scripts/prod-server.mjs ensure",
     "prod:stop": "node scripts/prod-server.mjs stop",
     "prod:restart": "node scripts/prod-server.mjs restart",
     "prod:status": "node scripts/prod-server.mjs status",
