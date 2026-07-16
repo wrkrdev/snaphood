@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { generateBrandImages, generateDraftFromImage } from "@/lib/ai";
 import { query } from "@/lib/db";
-import { saveUpload } from "@/lib/storage";
+import { saveRemoteImage, saveUpload } from "@/lib/storage";
 import type { TokenDraft } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -30,6 +30,10 @@ export async function POST(request: Request) {
   try {
     const [upload, generated] = await Promise.all([saveUpload(file), generateDraftFromImage(file)]);
     const images = await generateBrandImages(generated, upload.url);
+    const [profileImage, bannerImage] = await Promise.all([
+      saveRemoteImage(images.profileImageUrl, "generated").catch(() => ({ url: images.profileImageUrl })),
+      saveRemoteImage(images.bannerImageUrl, "generated").catch(() => ({ url: images.bannerImageUrl }))
+    ]);
     const id = crypto.randomUUID();
 
     const result = await query(
@@ -45,8 +49,8 @@ export async function POST(request: Request) {
         id,
         user.id,
         upload.url,
-        images.profileImageUrl,
-        images.bannerImageUrl,
+        profileImage.url,
+        bannerImage.url,
         generated.promptSummary,
         generated.name,
         generated.ticker,
