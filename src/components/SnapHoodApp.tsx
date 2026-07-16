@@ -273,6 +273,16 @@ export default function SnapHoodApp() {
       });
   }, [coins, feedTab, search]);
   const featuredCoins = visibleCoins.slice(0, 4);
+  const spiceChips = useMemo(() => {
+    if (!draft) return [];
+    const ticker = form.ticker || draft.ticker || "SNAP";
+    return [
+      `$${ticker} energy`,
+      form.tokenomics.allocation[0]?.label ?? "Community memes",
+      form.tokenomics.notes[0] ?? "Fixed supply",
+      requiresWalletLaunch ? "wallet launch" : "demo launch"
+    ].filter(Boolean);
+  }, [draft, form.ticker, form.tokenomics.allocation, form.tokenomics.notes, requiresWalletLaunch]);
 
   async function refreshSession() {
     const response = await fetch("/api/me");
@@ -645,15 +655,15 @@ export default function SnapHoodApp() {
           </a>
           <a className="side-link" href="#stack">
             <Activity size={16} />
-            <span>Stack</span>
+            <span>Proof</span>
           </a>
         </nav>
         <div className="side-status">
           <span className="status-pill">
             <span className="dot" />
-            {health?.readiness.network ?? "mainnet"} · {health?.readiness.chainId ?? 4663}
+            Live chain
           </span>
-          <span className="mini-copy">{health?.readiness.launchMode ?? "mainnet"} mode</span>
+          <span className="mini-copy">wallet-powered launches</span>
         </div>
       </aside>
 
@@ -664,7 +674,8 @@ export default function SnapHoodApp() {
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search coins, tickers, or contracts..."
+              placeholder="Search coins or tickers..."
+              aria-label="Search coins"
             />
           </div>
           <div className="nav-actions">
@@ -715,7 +726,7 @@ export default function SnapHoodApp() {
                 <Flame size={18} />
                 <div>
                   <strong>{stats?.tradableLaunches ?? coins.filter(isTradable).length}</strong>
-                  <span>tradable</span>
+                  <span>chart live</span>
                 </div>
               </div>
               <div className="ticker-card">
@@ -750,7 +761,7 @@ export default function SnapHoodApp() {
                         <strong>${coin.ticker}</strong>
                         <span>{coin.name}</span>
                       </div>
-                      <em>{isTradable(coin) ? "trade" : "contract"}</em>
+                      <em>{isTradable(coin) ? "trade" : "proof"}</em>
                     </a>
                   ))}
                 </div>
@@ -776,7 +787,7 @@ export default function SnapHoodApp() {
                   </button>
                   <button className={feedTab === "tradable" ? "tab active" : "tab"} onClick={() => setFeedTab("tradable")} type="button">
                     <Activity size={14} />
-                    Tradable
+                    Charts
                   </button>
                 </div>
               </div>
@@ -803,9 +814,8 @@ export default function SnapHoodApp() {
                                   <span>Vol {compactUsd(pair?.volume?.h24)}</span>
                                 </div>
                                 <div className="coin-meta">
-                                  <span>{isTradable(coin) ? "tradable" : "deployed only"}</span>
-                                  {!isTradable(coin) ? <span>needs pool</span> : null}
-                                  <span>chain {coin.chainId}</span>
+                                  <span>{isTradable(coin) ? "chart live" : "launched"}</span>
+                                  {!isTradable(coin) ? <span>chart soon</span> : null}
                                   <span>{new Date(coin.updatedAt).toLocaleDateString()}</span>
                                 </div>
                               </div>
@@ -818,11 +828,11 @@ export default function SnapHoodApp() {
                           </a>
                           <a className="btn ghost small" href={coin.explorerUrl} target="_blank" rel="noreferrer">
                             <ExternalLink size={14} />
-                            Contract
+                            Proof
                           </a>
                           {coin.txUrl ? (
                             <a className="btn ghost small" href={coin.txUrl} target="_blank" rel="noreferrer">
-                              Tx
+                              Receipt
                             </a>
                           ) : null}
                           {coin.dexscreenerUrl ? (
@@ -830,7 +840,7 @@ export default function SnapHoodApp() {
                               Chart
                             </a>
                           ) : !coin.poolAddress ? (
-                            <span className="trade-note">pool needed for chart</span>
+                            <span className="trade-note">chart unlock pending</span>
                           ) : null}
                         </div>
                       </article>
@@ -857,7 +867,7 @@ export default function SnapHoodApp() {
               <div className="panel-head">
                 <div>
                   <h2 className="panel-title">Create coin</h2>
-                  <p className="panel-subtitle">camera → AI → launch</p>
+                  <p className="panel-subtitle">snap → remix → launch</p>
                 </div>
                 <span className="status-pill">
                   <Sparkles size={14} />
@@ -908,7 +918,7 @@ export default function SnapHoodApp() {
                             <Camera size={22} />
                           </span>
                           <strong>snap to coin</strong>
-                          <span>camera or upload</span>
+                          <span>camera or upload a photo</span>
                         </span>
                       )}
                       <input
@@ -931,7 +941,7 @@ export default function SnapHoodApp() {
                       type="button"
                     >
                       <Upload size={16} />
-                      {busy === "generate" ? "Generating" : "Upload snap"}
+                      {busy === "generate" ? "Remixing" : "Upload snap"}
                     </button>
 
                     {userDrafts.length > 0 ? (
@@ -997,11 +1007,16 @@ export default function SnapHoodApp() {
                         <h3>{form.name || "Untitled Token"}</h3>
                         <p>${form.ticker || "SNAP"} · {form.tokenomics.supply}</p>
                         {draft.promptSummary ? <p className="meme-angle">{draft.promptSummary}</p> : null}
+                        <div className="spice-chips" aria-label="Coin vibe">
+                          {spiceChips.map((chip) => (
+                            <span key={chip}>{chip}</span>
+                          ))}
+                        </div>
                   </div>
                   <div className="disclaimer">
                     {requiresWalletLaunch
-                      ? "Live launches deploy from your connected wallet. SnapHood stores the verified receipt after the chain confirms it."
-                      : "Demo launches create a realistic receipt without broadcasting a transaction."}
+                      ? "Your wallet launches the coin. SnapHood saves the public proof after the chain confirms it."
+                      : "Demo launches create a preview receipt without sending a transaction."}
                   </div>
                 </div>
 
@@ -1065,7 +1080,7 @@ export default function SnapHoodApp() {
                     <div className="ack-panel" aria-label="Launch acknowledgements">
                       <div className="ack-head">
                         <ShieldCheck size={16} />
-                        <strong>Launch guardrails</strong>
+                        <strong>Before launch</strong>
                       </div>
                       {launchAcknowledgementItems.map((item) => (
                         <label className="check-row" key={item.key}>
@@ -1088,7 +1103,7 @@ export default function SnapHoodApp() {
                       <div className="toast">
                         {walletAddress
                           ? `Wallet connected${walletChainId ? ` on chain ${walletChainId}` : ""}.`
-                          : "Connect an EVM wallet to launch this token with your own gas."}
+                          : "Connect your wallet when you are ready to launch."}
                       </div>
                     ) : null}
 
@@ -1126,18 +1141,18 @@ export default function SnapHoodApp() {
             <section className="stack-proof" id="stack">
               <div>
                 <ImageIcon size={15} />
-                <span>uploads</span>
-                <strong>{health?.readiness.storage ? "storage" : "local"}</strong>
+                <span>snaps</span>
+                <strong>{health?.readiness.storage ? "saved" : "local"}</strong>
               </div>
               <div>
                 <WandSparkles size={15} />
-                <span>AI</span>
-                <strong>{health?.readiness.ai && health.readiness.imageAi ? "live" : "fallback"}</strong>
+                <span>remix</span>
+                <strong>{health?.readiness.ai && health.readiness.imageAi ? "on" : "fallback"}</strong>
               </div>
               <div>
                 <Activity size={15} />
-                <span>chain</span>
-                <strong>{health?.readiness.chainId ?? 4663}</strong>
+                <span>proof</span>
+                <strong>public</strong>
               </div>
             </section>
           </aside>
