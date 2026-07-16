@@ -39,12 +39,14 @@ const schema = z.object({
 });
 
 const guardrailVersion = "2026-07-16.public-demo-v1";
+const staleLaunchRecoveryMs = 15 * 60 * 1000;
 type DraftLaunchState = {
   id: string;
   status: string;
   contract_address: string | null;
   tx_hash: string | null;
   chain_id: number | null;
+  updated_at: Date;
 };
 
 export async function POST(request: Request) {
@@ -93,6 +95,7 @@ export async function POST(request: Request) {
   const ownership = await query<DraftLaunchState>(
     `
       select id, status, contract_address, tx_hash, chain_id
+             , updated_at
       from snaphood_token_drafts
       where id = $1 and user_id = $2
       limit 1
@@ -120,11 +123,25 @@ export async function POST(request: Request) {
     });
   }
 
+  let launchableStatus = draftState.status;
   if (draftState.status === "launching") {
-    return NextResponse.json({ error: "This draft is already launching. Refresh in a moment." }, { status: 409 });
+    if (draftState.contract_address || draftState.tx_hash || draftState.chain_id) {
+      return NextResponse.json({ error: "This draft has partial launch metadata. Contact an admin before retrying." }, { status: 409 });
+    }
+
+    if (!isStaleLaunch(draftState.updated_at)) {
+      return NextResponse.json({ error: "This draft is already launching. Refresh in a moment." }, { status: 409 });
+    }
+
+    const recovered = await recoverStaleLaunch(parsed.data.draftId, user.id, draftState.updated_at);
+    if (!recovered) {
+      return NextResponse.json({ error: "This draft is already launching. Refresh in a moment." }, { status: 409 });
+    }
+
+    launchableStatus = "draft";
   }
 
-  if (draftState.status !== "draft") {
+  if (launchableStatus !== "draft") {
     return NextResponse.json({ error: "This draft cannot be launched. Create a new draft and try again." }, { status: 409 });
   }
 
@@ -247,4 +264,50 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
+}
+
+function isStaleLaunch(updatedAt: Date) {
+  return Date.now() - updatedAt.getTime() >= staleLaunchRecoveryMs;
+}
+
+async function recoverStaleLaunch(draftId: string, userId: string, previousUpdatedAt: Date) {
+  return withTransaction(async (client) => {
+    const result = await client.query<{ id: string }>(
+      `
+        update snaphood_token_drafts
+        set status = 'draft', updated_at = now()
+        where id = $1
+          and user_id = $2
+          and status = 'launching'
+          and contract_address is null
+          and tx_hash is null
+          and chain_id is null
+          and updated_at <= $3
+        returning id
+      `,
+      [draftId, userId, new Date(Date.now() - staleLaunchRecoveryMs)]
+    );
+
+    if (!result.rows[0]) {
+      return false;
+    }
+
+    await client.query(
+      "insert into snaphood_launch_events (id, draft_id, event_type, payload) values ($1, $2, $3, $4)",
+      [
+        crypto.randomUUID(),
+        draftId,
+        "launch.recovered",
+        JSON.stringify({
+          mode: env.launchMode,
+          chainId: env.robinhoodChainId,
+          previousUpdatedAt: previousUpdatedAt.toISOString(),
+          recoveredAt: new Date().toISOString(),
+          reason: "stale launching draft without chain receipt"
+        })
+      ]
+    );
+
+    return true;
+  });
 }

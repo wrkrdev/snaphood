@@ -41,7 +41,8 @@ assert(me.user?.id, "expected authenticated user id");
 
 const pool = new Pool({ connectionString: databaseUrl, max: 1 });
 const draftId = crypto.randomUUID();
-let shouldCleanupDraft = false;
+const staleDraftId = crypto.randomUUID();
+const draftIdsToCleanup = [];
 const tokenomics = {
   supply: "1000000000",
   decimals: 18,
@@ -71,7 +72,7 @@ try {
       JSON.stringify(tokenomics)
     ]
   );
-  shouldCleanupDraft = true;
+  draftIdsToCleanup.push(draftId);
 } finally {
   await pool.end().catch(() => undefined);
 }
@@ -102,8 +103,8 @@ assert(
   "second launch should return the same contract and tx"
 );
 
-const startedEventCount = await countLaunchEvents("launch.started");
-const completedEventCount = await countLaunchEvents("launch.completed");
+const startedEventCount = await countLaunchEvents(draftId, "launch.started");
+const completedEventCount = await countLaunchEvents(draftId, "launch.completed");
 assert(startedEventCount === 1, `expected one launch.started event after retry, got ${startedEventCount}`);
 assert(completedEventCount === 1, `expected one launch.completed event after retry, got ${completedEventCount}`);
 
@@ -112,6 +113,23 @@ const feedCoin = feed.coins?.find(
   (coin) => coin.contractAddress?.toLowerCase() === first.launch.contractAddress.toLowerCase()
 );
 assert(feedCoin, "launched coin should be visible through the public coins API");
+
+await createStaleLaunchingDraft();
+const staleLaunchBody = {
+  ...launchBody,
+  draftId: staleDraftId,
+  name: "Recovered Launch",
+  ticker: "RCVR",
+  description: "A deterministic stale launching draft used to prove safe recovery after a worker interruption."
+};
+const recovered = await postJson("/api/launch", staleLaunchBody);
+assert(recovered.launch?.contractAddress, "recovered launch should return a contract address");
+const recoveredEventCount = await countLaunchEvents(staleDraftId, "launch.recovered");
+const recoveredStartedEventCount = await countLaunchEvents(staleDraftId, "launch.started");
+const recoveredCompletedEventCount = await countLaunchEvents(staleDraftId, "launch.completed");
+assert(recoveredEventCount === 1, `expected one launch.recovered event, got ${recoveredEventCount}`);
+assert(recoveredStartedEventCount === 2, `expected old and new launch.started events, got ${recoveredStartedEventCount}`);
+assert(recoveredCompletedEventCount === 1, `expected one recovered launch.completed event, got ${recoveredCompletedEventCount}`);
 
 await cleanupDraft();
 
@@ -124,6 +142,11 @@ console.log(
       txHash: first.launch.txHash,
       launchStartedEvents: startedEventCount,
       launchCompletedEvents: completedEventCount,
+      staleRecovery: {
+        recoveredEvents: recoveredEventCount,
+        launchStartedEvents: recoveredStartedEventCount,
+        launchCompletedEvents: recoveredCompletedEventCount
+      },
       feedVisible: true,
       reused: second.launch.reused
     },
@@ -133,17 +156,55 @@ console.log(
 );
 
 async function cleanupDraft() {
-  if (!shouldCleanupDraft) return;
+  if (!draftIdsToCleanup.length) return;
 
   const cleanupPool = new Pool({ connectionString: databaseUrl, max: 1 });
   try {
-    await cleanupPool.query("delete from snaphood_token_drafts where id = $1", [draftId]);
+    await cleanupPool.query("delete from snaphood_token_drafts where id = any($1::text[])", [draftIdsToCleanup]);
   } finally {
     await cleanupPool.end().catch(() => undefined);
   }
 }
 
-async function countLaunchEvents(eventType) {
+async function createStaleLaunchingDraft() {
+  const stalePool = new Pool({ connectionString: databaseUrl, max: 1 });
+  try {
+    await stalePool.query(
+      `
+        insert into snaphood_token_drafts (
+          id, user_id, original_image_url, profile_image_url, banner_image_url,
+          prompt_summary, name, ticker, description, tokenomics, status, updated_at
+        )
+        values ($1, $2, '/assets/snapg-genesis.png', '/assets/snapg-genesis.png', '/assets/snapg-genesis.png',
+          'stale launch recovery verifier', 'Recovered Launch', 'RCVR', $3, $4, 'launching', now() - interval '30 minutes')
+      `,
+      [
+        staleDraftId,
+        me.user.id,
+        "A deterministic stale launching draft used to prove safe recovery after a worker interruption.",
+        JSON.stringify(tokenomics)
+      ]
+    );
+    draftIdsToCleanup.push(staleDraftId);
+    await stalePool.query(
+      "insert into snaphood_launch_events (id, draft_id, event_type, payload) values ($1, $2, $3, $4)",
+      [
+        crypto.randomUUID(),
+        staleDraftId,
+        "launch.started",
+        JSON.stringify({
+          mode: "demo",
+          reason: "synthetic stale verifier event",
+          createdBy: "verify:launch-consistency"
+        })
+      ]
+    );
+  } finally {
+    await stalePool.end().catch(() => undefined);
+  }
+}
+
+async function countLaunchEvents(targetDraftId, eventType) {
   const countPool = new Pool({ connectionString: databaseUrl, max: 1 });
   try {
     const result = await countPool.query(
@@ -152,7 +213,7 @@ async function countLaunchEvents(eventType) {
         from snaphood_launch_events
         where draft_id = $1 and event_type = $2
       `,
-      [draftId, eventType]
+      [targetDraftId, eventType]
     );
     return result.rows[0].count;
   } finally {
