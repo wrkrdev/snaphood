@@ -8,6 +8,7 @@ const cookieJar = [];
 
 await checkPage("/", "SnapHood");
 await checkPage("/stack", "Wrkr proof");
+await checkPage("/robots.txt", "Sitemap:");
 
 const health = await checkJson("/api/health", "health");
 assert(health.ok === true, "health.ok should be true");
@@ -39,6 +40,10 @@ if (requireCoin) {
   assert(coinPage.includes(`${first.name} ($${first.ticker})`), "coin page should include token-specific metadata title");
   assert(coinPage.includes('property="og:title"'), "coin page should include Open Graph title metadata");
   assert(coinPage.includes('name="twitter:card"'), "coin page should include Twitter card metadata");
+
+  const sitemap = await checkPage("/sitemap.xml", first.contractAddress);
+  assert(sitemap.includes("/stack"), "sitemap should include stack proof page");
+  assert(sitemap.includes(`/coin/${first.contractAddress}`), "sitemap should include launched coin page");
 }
 
 const authPayload = await postJson("/api/auth/start", {
