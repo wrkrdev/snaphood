@@ -151,6 +151,15 @@ SNAPHOOD_AUTH_MAGIC_LINK_TTL_MINUTES="15"
 `SNAPHOOD_AUTH_EMAIL_MODE=dry-run` keeps the same Postgres-backed magic-link flow but returns the link in the API response
 for local verification. `wrkr` mode sends through `wrkr email send`.
 
+To verify magic-link replay behavior locally, restart the app with demo auth disabled and dry-run email enabled, then run:
+
+```bash
+SNAPHOOD_DEMO_AUTH_ENABLED=false SNAPHOOD_AUTH_EMAIL_MODE=dry-run npm run dev -- --hostname 0.0.0.0
+npm run verify:auth-challenge-consistency
+```
+
+The verifier starts two links for the same email and confirms the older link is retired while the newest link signs in.
+
 ## Trading / Liquidity
 
 SnapHood can make a deployed token technically tradable by seeding a Uniswap v3 pool on Robinhood Chain mainnet.

@@ -2,7 +2,7 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from "crypto";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { cookies } from "next/headers";
-import { query } from "@/lib/db";
+import { query, withTransaction } from "@/lib/db";
 import { env } from "@/lib/env";
 
 const cookieName = "snaphood_session";
@@ -85,13 +85,30 @@ export async function createMagicLink(email: string) {
   const id = crypto.randomUUID();
   const expiresAt = new Date(Date.now() + env.authMagicLinkTtlMinutes * 60 * 1000);
 
-  await query(
-    `
-      insert into snaphood_auth_challenges (id, email, token_hash, expires_at)
-      values ($1, $2, $3, $4)
-    `,
-    [id, normalizedEmail, tokenHash, expiresAt]
-  );
+  await withTransaction(async (client) => {
+    await client.query("select pg_advisory_xact_lock(hashtextextended($1, 0))", [
+      `snaphood-auth-challenge:${normalizedEmail}`
+    ]);
+
+    await client.query(
+      `
+        update snaphood_auth_challenges
+        set used_at = now()
+        where email = $1
+          and used_at is null
+          and expires_at > now()
+      `,
+      [normalizedEmail]
+    );
+
+    await client.query(
+      `
+        insert into snaphood_auth_challenges (id, email, token_hash, expires_at)
+        values ($1, $2, $3, $4)
+      `,
+      [id, normalizedEmail, tokenHash, expiresAt]
+    );
+  });
 
   return {
     email: normalizedEmail,
