@@ -97,6 +97,10 @@ proof events, and compact Dexscreener cache so a fresh Wrkr database has a trada
 `npm run verify:secrets` scans tracked files for committed API keys, wallet private keys, PEM private keys, non-placeholder
 secret env assignments, and accidentally tracked local uploads or env files. It intentionally ignores public blockchain tx hashes.
 
+Security headers are configured in `next.config.ts` and verified by `npm run verify:smoke`. The policy disables
+`X-Powered-By`, blocks framing and plugin content, keeps referrers scoped, restricts browser permissions, and allows
+camera access only for the local SnapHood capture workflow.
+
 ## Launch Modes
 
 `TOKEN_LAUNCH_MODE=demo` is the default. It creates a realistic launch receipt without broadcasting a transaction.

@@ -8,6 +8,7 @@ const cookieJar = [];
 let signedIn = false;
 
 await checkPage("/", "SnapHood");
+await checkSecurityHeaders("/");
 await checkPage("/stack", "Wrkr proof");
 await checkPage("/robots.txt", "Sitemap:");
 
@@ -131,6 +132,22 @@ async function checkPage(path, expectedText) {
   assert(text.includes(expectedText), `${path} should include ${expectedText}`);
   checks.push({ name: path, status: response.status });
   return text;
+}
+
+async function checkSecurityHeaders(path) {
+  const response = await fetch(`${baseUrl}${path}`, {
+    headers: withCookies({ "x-forwarded-for": syntheticIp })
+  });
+  assert(response.ok, `${path} should return 2xx for security header check, got ${response.status}`);
+  assert(response.headers.get("x-powered-by") === null, "X-Powered-By header should be disabled");
+  assert(response.headers.get("x-content-type-options") === "nosniff", "X-Content-Type-Options should be nosniff");
+  assert(response.headers.get("x-frame-options") === "DENY", "X-Frame-Options should be DENY");
+  assert(response.headers.get("referrer-policy") === "strict-origin-when-cross-origin", "Referrer-Policy should be strict");
+  assert(response.headers.get("permissions-policy")?.includes("camera=(self)"), "Permissions-Policy should allow camera only for self");
+  const csp = response.headers.get("content-security-policy") ?? "";
+  assert(csp.includes("frame-ancestors 'none'"), "CSP should block framing");
+  assert(csp.includes("object-src 'none'"), "CSP should block plugins");
+  checks.push({ name: "security headers", status: response.status });
 }
 
 async function checkJson(path, name) {
