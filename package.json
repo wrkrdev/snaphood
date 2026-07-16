@@ -1,0 +1,42 @@
+{
+  "name": "snaphood",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Snap-to-meme-token demo for Robinhood Chain on the Wrkr stack.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "contract:compile": "node scripts/compile-contract.mjs",
+    "liquidity:seed": "node scripts/seed-uniswap-v3-liquidity.mjs",
+    "swap:smoke": "node scripts/swap-uniswap-v3-smoke.mjs",
+    "dex:sync": "node scripts/sync-dexscreener.mjs",
+    "db:migrate": "tsx scripts/migrate.ts"
+  },
+  "dependencies": {
+    "@fal-ai/client": "^1.10.1",
+    "dotenv": "^17.4.2",
+    "ioredis": "^5.11.1",
+    "lucide-react": "^1.23.0",
+    "next": "16.2.10",
+    "pg": "^8.22.0",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "viem": "^2.55.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.18",
+    "@types/node": "^20.19.26",
+    "@types/pg": "^8.20.0",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "tailwindcss": "^4.1.18",
+    "tsx": "^4.23.0",
+    "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "postcss": "^8.5.10"
+  }
+}

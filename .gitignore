@@ -1,0 +1,11 @@
+.next/
+node_modules/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+public/uploads/
+data/uploads/
+npm-debug.log*
+*.tsbuildinfo
