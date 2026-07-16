@@ -210,6 +210,9 @@ Admin API routes:
 - `POST /api/admin/coins/<contract>/index-swap` — estimate or run a tiny WETH-to-token indexer swap.
 - `POST /api/admin/coins/<contract>/sync-dex` — fetch and cache the Dexscreener pair payload.
 
+Live admin trading execution requires `execute: true` plus `confirmation: "EXECUTE_LIVE_TRADE"` in the request body.
+Dry-run planning requests omit the confirmation and never broadcast transactions.
+
 ## Abuse Controls
 
 `src/lib/rate-limit.ts` uses Wrkr Redis when `REDIS_URL` is set and falls back to

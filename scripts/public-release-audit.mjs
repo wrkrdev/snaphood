@@ -8,6 +8,7 @@ await checkCiWorkflow();
 await checkEnvExample();
 await checkReleaseDocs();
 await checkSecurityHeaders();
+await checkAdminExecutionGuardrails();
 await checkContractArtifact();
 
 const failures = checks.filter((check) => check.status === "fail");
@@ -131,6 +132,25 @@ async function checkSecurityHeaders() {
   ]) {
     includesOrFail(nextConfig, header, "next.config.ts", `Security header configured: ${header}`);
   }
+}
+
+async function checkAdminExecutionGuardrails() {
+  const guard = await readText("src/lib/admin-execution.ts");
+  includesOrFail(guard, "EXECUTE_LIVE_TRADE", "admin execution guard", "Live trading confirmation phrase is defined.");
+  includesOrFail(guard, "hasAdminExecutionConfirmation", "admin execution guard", "Server-side confirmation helper exists.");
+
+  for (const route of [
+    "src/app/api/admin/coins/[contract]/make-tradable/route.ts",
+    "src/app/api/admin/coins/[contract]/index-swap/route.ts"
+  ]) {
+    const source = await readText(route);
+    includesOrFail(source, "hasAdminExecutionConfirmation", route, "Live trading route checks execution confirmation.");
+    includesOrFail(source, "Execution confirmation is required", route, "Live trading route rejects unconfirmed execution.");
+  }
+
+  const panel = await readText("src/components/AdminTradingPanel.tsx");
+  includesOrFail(panel, "adminExecutionConfirmation", "AdminTradingPanel", "Admin panel exposes the execution confirmation key.");
+  includesOrFail(panel, "!executionConfirmed", "AdminTradingPanel", "Spendful admin buttons require typed confirmation.");
 }
 
 async function checkContractArtifact() {

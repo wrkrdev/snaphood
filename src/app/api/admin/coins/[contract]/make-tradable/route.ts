@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/admin";
+import { hasAdminExecutionConfirmation } from "@/lib/admin-execution";
 import { getAdminCoin, recordLaunchEvent, recordLiquidity } from "@/lib/admin-coins";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { readOptionalJsonBody, rejectCrossOrigin } from "@/lib/request-guards";
@@ -10,6 +11,7 @@ export const runtime = "nodejs";
 
 const schema = z.object({
   execute: z.boolean().optional().default(false),
+  confirmation: z.string().optional(),
   tokenAmount: z.string().min(1).optional(),
   ethAmount: z.string().min(1).optional()
 });
@@ -28,6 +30,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ con
   const parsed = schema.safeParse(json.body);
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid trading request." }, { status: 400 });
+  }
+
+  if (parsed.data.execute && !hasAdminExecutionConfirmation(parsed.data.confirmation)) {
+    return NextResponse.json({ error: "Execution confirmation is required for live trading operations." }, { status: 400 });
   }
 
   const limited = await applyRateLimit(request, {

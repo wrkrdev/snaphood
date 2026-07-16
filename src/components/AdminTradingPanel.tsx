@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Activity, RefreshCw, Rocket, ShieldCheck } from "lucide-react";
+import { adminExecutionConfirmation } from "@/lib/admin-execution";
 
 type AdminTradingPanelProps = {
   contractAddress: string;
@@ -25,6 +26,8 @@ export function AdminTradingPanel({ contractAddress, isTradable, hasIndexerSwap 
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [result, setResult] = useState<AdminResult | null>(null);
+  const [confirmation, setConfirmation] = useState("");
+  const executionConfirmed = confirmation === adminExecutionConfirmation;
 
   async function callAdmin(action: "make-tradable" | "index-swap" | "sync-dex", execute = false) {
     if (execute) {
@@ -39,12 +42,21 @@ export function AdminTradingPanel({ contractAddress, isTradable, hasIndexerSwap 
       const response = await fetch(`/api/admin/coins/${contractAddress}/${action}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: action === "sync-dex" ? "{}" : JSON.stringify({ execute })
+        body:
+          action === "sync-dex"
+            ? "{}"
+            : JSON.stringify({
+                execute,
+                confirmation: execute ? confirmation : undefined
+              })
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Admin action failed.");
       setResult(data.result);
       setMessage(action === "sync-dex" ? "Dexscreener synced." : execute ? "Transaction flow completed." : "Estimate ready.");
+      if (execute) {
+        setConfirmation("");
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Admin action failed.");
     } finally {
@@ -75,9 +87,19 @@ export function AdminTradingPanel({ contractAddress, isTradable, hasIndexerSwap 
           <Activity size={14} />
           Estimate LP
         </button>
+        <label className="admin-confirmation">
+          <span>Execution key</span>
+          <input
+            autoComplete="off"
+            spellCheck={false}
+            value={confirmation}
+            onChange={(event) => setConfirmation(event.target.value.trim())}
+            placeholder={adminExecutionConfirmation}
+          />
+        </label>
         <button
           className="btn primary small"
-          disabled={Boolean(busy)}
+          disabled={Boolean(busy) || !executionConfirmed}
           onClick={() => void callAdmin("make-tradable", true)}
           type="button"
         >
@@ -95,7 +117,7 @@ export function AdminTradingPanel({ contractAddress, isTradable, hasIndexerSwap 
         </button>
         <button
           className="btn primary small"
-          disabled={Boolean(busy)}
+          disabled={Boolean(busy) || !executionConfirmed}
           onClick={() => void callAdmin("index-swap", true)}
           type="button"
         >

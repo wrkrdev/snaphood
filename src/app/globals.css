@@ -1482,6 +1482,36 @@ h1 {
   gap: 8px;
 }
 
+.admin-confirmation {
+  display: flex;
+  min-width: min(100%, 280px);
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(5, 5, 5, 0.1);
+  border-radius: 8px;
+  background: #f7faf5;
+  padding: 6px 8px;
+}
+
+.admin-confirmation span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 760;
+  white-space: nowrap;
+}
+
+.admin-confirmation input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 760;
+  outline: none;
+}
+
 .admin-result {
   display: grid;
   gap: 10px;
