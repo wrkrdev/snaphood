@@ -34,6 +34,9 @@ jobs:
       - name: Check committed secrets
         run: npm run verify:secrets
 
+      - name: Audit public release posture
+        run: npm run verify:public-release
+
       - name: Verify contract artifact
         run: npm run contract:verify
 
