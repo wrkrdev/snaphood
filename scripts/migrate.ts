@@ -1,8 +1,8 @@
 import { Pool } from "pg";
 import { config } from "dotenv";
 
-config({ path: ".env.local" });
-config();
+config({ path: ".env.local", quiet: true });
+config({ quiet: true });
 
 const databaseUrl = process.env.DATABASE_URL;
 

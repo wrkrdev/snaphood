@@ -6,6 +6,7 @@ Before making SnapHood public:
 - Rotate any key that was ever pasted into a shell, log, screenshot, or chat.
 - Keep GitHub Actions CI green on `main`.
 - Run `npm run verify:readiness -- --profile=public` and resolve every failure.
+- Run `npm run db:migrate && npm run db:seed` on the deployment database.
 - Disable demo auth and verify Wrkr magic-link email delivery.
 - Verify Redis-backed rate limits are active for auth, generation, launch, and admin trading endpoints.
 - Enable Wrkr storage with public asset URLs for uploaded and generated coin media.

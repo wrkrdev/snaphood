@@ -39,6 +39,7 @@ Copy the printed URLs into `.env.local`, then run:
 
 ```bash
 npm run db:migrate
+npm run db:seed
 npm run dev -- --hostname 0.0.0.0
 ```
 
@@ -50,6 +51,7 @@ With the app running locally, verify the full demo surface:
 
 ```bash
 npm run db:migrate
+npm run db:seed
 npm run verify:env-example
 npm run contract:verify
 npm run build
@@ -78,6 +80,9 @@ SNAPHOOD_SMOKE_GENERATE=true npm run verify:smoke
 
 That path signs in, uploads a generated 1x1 PNG, and checks that `/api/generate` returns persisted draft metadata and image URLs.
 It may call configured AI/image providers, so keep it opt-in for low-cost routine checks.
+
+`npm run db:seed` is idempotent. It inserts or updates the public SNAPG proof launch, Uniswap v3 pool metadata,
+proof events, and compact Dexscreener cache so a fresh Wrkr database has a tradable coin on the homepage after migration.
 
 ## Launch Modes
 

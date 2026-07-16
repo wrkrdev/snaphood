@@ -33,8 +33,13 @@ if (requireCoin) {
   assert(proof.proof?.contractAddress?.toLowerCase() === first.contractAddress.toLowerCase(), "launch proof should match feed contract");
   assert(Array.isArray(proof.proof?.events), "launch proof should expose event history");
   assert(proof.proof.events.some((event) => event.eventType === "launch.completed"), "launch proof should include launch.completed event");
+  assert(proof.proof.guardrails?.acknowledgements, "launch proof should include persisted guardrail acknowledgements");
+  assert(proof.proof.events.some((event) => event.eventType === "trading.liquidity_seeded"), "launch proof should include liquidity event");
+  assert(proof.proof.events.some((event) => event.eventType === "trading.indexer_swap"), "launch proof should include indexer swap event");
+  assert(proof.proof.events.some((event) => event.eventType === "trading.dexscreener_synced"), "launch proof should include Dexscreener sync event");
   assert(Array.isArray(proof.proof?.timeline), "launch proof should include a timeline");
   assert(proof.proof.timeline.some((item) => item.label === "Token deployed" && item.status === "complete"), "launch proof should include completed deployment");
+  assert(proof.proof.timeline.every((item) => item.status === "complete"), "seeded launch proof timeline should be complete");
 
   const tradable = coinsPayload.coins.find((coin) => coin.dexscreenerUrl || coin.poolAddress);
   assert(tradable, "expected at least one tradable coin with pool or Dexscreener metadata");

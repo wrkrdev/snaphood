@@ -17,6 +17,7 @@
     "verify:readiness": "node scripts/readiness.mjs",
     "dex:sync": "node scripts/sync-dexscreener.mjs",
     "db:migrate": "tsx scripts/migrate.ts",
+    "db:seed": "node scripts/seed-demo.mjs",
     "db:maintenance": "node scripts/maintenance.mjs"
   },
   "dependencies": {
