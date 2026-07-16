@@ -29,6 +29,15 @@ export type LaunchRequest = {
   ticker: string;
   description: string;
   tokenomics: Tokenomics;
+  acknowledgements: LaunchAcknowledgements;
+};
+
+export type LaunchAcknowledgements = {
+  noInvestmentValue: true;
+  noAffiliation: true;
+  contentRights: true;
+  jurisdictionAllowed: true;
+  liveAdminControlled: true;
 };
 
 export type LaunchedCoin = {

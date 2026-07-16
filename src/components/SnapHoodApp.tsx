@@ -19,7 +19,7 @@ import {
   Upload,
   WandSparkles
 } from "lucide-react";
-import type { LaunchedCoin, TokenDraft, Tokenomics } from "@/lib/types";
+import type { LaunchAcknowledgements, LaunchedCoin, TokenDraft, Tokenomics } from "@/lib/types";
 
 type User = {
   id: string;
@@ -69,6 +69,17 @@ type DexPair = {
   fdv?: number;
 };
 
+const launchAcknowledgementItems: Array<{
+  key: keyof LaunchAcknowledgements;
+  label: string;
+}> = [
+  { key: "noInvestmentValue", label: "This is a meme token experiment, not an investment product or financial promise." },
+  { key: "noAffiliation", label: "SnapHood is not affiliated with Robinhood, Pump.fun, Dexscreener, or Uniswap." },
+  { key: "contentRights", label: "I have the right to use the uploaded image and generated token details." },
+  { key: "jurisdictionAllowed", label: "I am allowed to create this token from my jurisdiction." },
+  { key: "liveAdminControlled", label: "Live launches and trading operations are admin-controlled in this deployment." }
+];
+
 function getPair(coin: LaunchedCoin) {
   return coin.dexscreenerPair as DexPair | undefined;
 }
@@ -100,6 +111,13 @@ export default function SnapHoodApp() {
     description: "",
     tokenomics: defaultTokenomics
   });
+  const [acknowledgements, setAcknowledgements] = useState<Record<keyof LaunchAcknowledgements, boolean>>({
+    noInvestmentValue: false,
+    noAffiliation: false,
+    contentRights: false,
+    jurisdictionAllowed: false,
+    liveAdminControlled: false
+  });
   const [receipt, setReceipt] = useState<LaunchReceipt | null>(null);
 
   useEffect(() => {
@@ -119,12 +137,23 @@ export default function SnapHoodApp() {
       description: draft.description,
       tokenomics: draft.tokenomics
     });
+    setAcknowledgements({
+      noInvestmentValue: false,
+      noAffiliation: false,
+      contentRights: false,
+      jurisdictionAllowed: false,
+      liveAdminControlled: false
+    });
     setReceipt(null);
   }, [draft]);
 
   const allocationTotal = useMemo(
     () => form.tokenomics.allocation.reduce((sum, row) => sum + Number(row.percent || 0), 0),
     [form.tokenomics.allocation]
+  );
+  const acknowledgementsAccepted = useMemo(
+    () => launchAcknowledgementItems.every((item) => acknowledgements[item.key]),
+    [acknowledgements]
   );
   const visibleCoins = useMemo(() => {
     const normalized = search.trim().toLowerCase();
@@ -219,7 +248,16 @@ export default function SnapHoodApp() {
         body: JSON.stringify({
           draftId: draft.id,
           ...form,
-          ticker: form.ticker.toUpperCase()
+          ticker: form.ticker.toUpperCase(),
+          acknowledgements: acknowledgementsAccepted
+            ? {
+                noInvestmentValue: true,
+                noAffiliation: true,
+                contentRights: true,
+                jurisdictionAllowed: true,
+                liveAdminControlled: true
+              }
+            : acknowledgements
         })
       });
       const data = await response.json();
@@ -583,9 +621,31 @@ export default function SnapHoodApp() {
                       <div className={allocationTotal === 100 ? "toast" : "toast error"}>{allocationTotal}% allocated</div>
                     </div>
 
+                    <div className="ack-panel" aria-label="Launch acknowledgements">
+                      <div className="ack-head">
+                        <ShieldCheck size={16} />
+                        <strong>Launch guardrails</strong>
+                      </div>
+                      {launchAcknowledgementItems.map((item) => (
+                        <label className="check-row" key={item.key}>
+                          <input
+                            type="checkbox"
+                            checked={acknowledgements[item.key]}
+                            onChange={(event) =>
+                              setAcknowledgements((current) => ({
+                                ...current,
+                                [item.key]: event.target.checked
+                              }))
+                            }
+                          />
+                          <span>{item.label}</span>
+                        </label>
+                      ))}
+                    </div>
+
                     <button
                       className="btn primary"
-                      disabled={busy === "launch" || allocationTotal !== 100}
+                      disabled={busy === "launch" || allocationTotal !== 100 || !acknowledgementsAccepted}
                       onClick={launch}
                       type="button"
                     >

@@ -27,8 +27,17 @@ const schema = z.object({
       })
     ),
     notes: z.array(z.string().max(160))
+  }),
+  acknowledgements: z.object({
+    noInvestmentValue: z.literal(true),
+    noAffiliation: z.literal(true),
+    contentRights: z.literal(true),
+    jurisdictionAllowed: z.literal(true),
+    liveAdminControlled: z.literal(true)
   })
 });
+
+const guardrailVersion = "2026-07-16.public-demo-v1";
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();
@@ -99,7 +108,20 @@ export async function POST(request: Request) {
 
     await query(
       "insert into snaphood_launch_events (id, draft_id, event_type, payload) values ($1, $2, $3, $4)",
-      [crypto.randomUUID(), parsed.data.draftId, "launch.completed", JSON.stringify(launch)]
+      [
+        crypto.randomUUID(),
+        parsed.data.draftId,
+        "launch.completed",
+        JSON.stringify({
+          launch,
+          guardrails: {
+            version: guardrailVersion,
+            acceptedAt: new Date().toISOString(),
+            acceptedBy: user.id,
+            acknowledgements: parsed.data.acknowledgements
+          }
+        })
+      ]
     );
 
     return NextResponse.json({ launch });

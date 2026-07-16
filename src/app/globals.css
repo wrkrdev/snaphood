@@ -227,6 +227,12 @@ h1 {
   transform: translateY(-1px);
 }
 
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+  transform: none;
+}
+
 .btn.primary {
   background: var(--hood-green);
   color: #001b03;
@@ -426,6 +432,41 @@ h1 {
   color: #5d4300;
   font-size: 13px;
   line-height: 1.45;
+}
+
+.ack-panel {
+  display: grid;
+  gap: 9px;
+  border: 1px solid rgba(5, 5, 5, 0.1);
+  border-radius: 8px;
+  background: #fbfdfb;
+  padding: 12px;
+}
+
+.ack-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.check-row {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 9px;
+  align-items: start;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.check-row input {
+  width: 16px;
+  height: 16px;
+  margin: 1px 0 0;
+  accent-color: var(--hood-green);
 }
 
 .section {

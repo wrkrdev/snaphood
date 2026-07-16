@@ -50,6 +50,11 @@ Open `http://localhost:3000`.
 
 Live launch modes are admin-gated by `SNAPHOOD_ADMIN_EMAILS`. Public visitors can explore coins and generate drafts, but they cannot spend the server deployer wallet.
 
+Every launch request must include creator acknowledgements that the token is a meme experiment, not an investment product,
+that SnapHood has no official affiliation with Robinhood, Pump.fun, Dexscreener, or Uniswap, that the creator can use the
+uploaded content, that the creator is allowed to launch from their jurisdiction, and that live execution is admin-controlled. The accepted guardrail version is persisted in
+`snaphood_launch_events` with the launch receipt.
+
 Before enabling live deployment:
 
 - fund a dedicated low-balance deployer wallet with ETH on the target Robinhood Chain network;

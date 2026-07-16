@@ -7,7 +7,7 @@ Before making SnapHood public:
 - Replace demo auth with magic-link email or OAuth.
 - Verify Redis-backed rate limits are active for auth, generation, launch, and admin trading endpoints.
 - Keep default `TOKEN_LAUNCH_MODE=demo` in `.env.example`.
-- Add jurisdiction and no-investment-value disclaimers to the launch flow.
+- Verify launch acknowledgements cover jurisdiction, no-investment-value, content rights, and no-affiliation guardrails.
 - Review `contracts/SnapHoodToken.sol` and use a reproducible compile/deploy script.
 - Deploy to Robinhood Chain testnet before mainnet.
 - Keep liquidity and indexer-swap execution admin-gated with a dry-run/confirmation step.
