@@ -60,6 +60,30 @@ export const wethAbi = [
   }
 ] as const;
 
+export const permitProbeAbi = [
+  {
+    type: "function",
+    name: "nonces",
+    stateMutability: "view",
+    inputs: [{ name: "owner", type: "address" }],
+    outputs: [{ name: "", type: "uint256" }]
+  },
+  {
+    type: "function",
+    name: "DOMAIN_SEPARATOR",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "bytes32" }]
+  },
+  {
+    type: "function",
+    name: "name",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "string" }]
+  }
+] as const;
+
 export const factoryAbi = [
   {
     type: "function",
@@ -116,6 +140,34 @@ export const positionManagerAbi = [
       { name: "amount0", type: "uint256" },
       { name: "amount1", type: "uint256" }
     ]
+  },
+  {
+    type: "function",
+    name: "multicall",
+    stateMutability: "payable",
+    inputs: [{ name: "data", type: "bytes[]" }],
+    outputs: [{ name: "results", type: "bytes[]" }]
+  },
+  {
+    type: "function",
+    name: "refundETH",
+    stateMutability: "payable",
+    inputs: [],
+    outputs: []
+  },
+  {
+    type: "function",
+    name: "selfPermitIfNecessary",
+    stateMutability: "payable",
+    inputs: [
+      { name: "token", type: "address" },
+      { name: "value", type: "uint256" },
+      { name: "deadline", type: "uint256" },
+      { name: "v", type: "uint8" },
+      { name: "r", type: "bytes32" },
+      { name: "s", type: "bytes32" }
+    ],
+    outputs: []
   },
   {
     type: "event",
@@ -460,28 +512,16 @@ export async function planUserWalletLiquidity(
   const tickUpper = Math.floor(887272 / tickSpacing) * tickSpacing;
   const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 30);
 
-  const [nativeBalance, tokenBalance, wethBalance, tokenAllowance, wethAllowance, existingPool] = await Promise.all([
+  const [nativeBalance, tokenBalance, existingPool, permit] = await Promise.all([
     ctx.publicClient.getBalance({ address: account }),
     ctx.publicClient.readContract({ address: token, abi: erc20Abi, functionName: "balanceOf", args: [account] }),
-    ctx.publicClient.readContract({ address: ctx.weth, abi: erc20Abi, functionName: "balanceOf", args: [account] }),
-    ctx.publicClient.readContract({
-      address: token,
-      abi: erc20Abi,
-      functionName: "allowance",
-      args: [account, ctx.positionManager]
-    }),
-    ctx.publicClient.readContract({
-      address: ctx.weth,
-      abi: erc20Abi,
-      functionName: "allowance",
-      args: [account, ctx.positionManager]
-    }),
     ctx.publicClient.readContract({
       address: ctx.factory,
       abi: factoryAbi,
       functionName: "getPool",
       args: [token, ctx.weth, ctx.fee]
-    })
+    }),
+    detectTokenPermit(ctx.publicClient, token, account)
   ]);
 
   if (tokenBalance < tokenAmount) {
@@ -490,48 +530,21 @@ export async function planUserWalletLiquidity(
     );
   }
 
-  const steps: TradingStep[] = [];
-  if (wethBalance < ethAmount) {
-    steps.push({
-      label: "wrap ETH to WETH",
-      to: ctx.weth,
-      value: ethAmount - wethBalance,
-      data: encodeFunctionData({ abi: wethAbi, functionName: "deposit" })
-    });
-  }
-
-  if (wethAllowance < ethAmount) {
-    steps.push({
-      label: "approve WETH",
-      to: ctx.weth,
-      data: encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [ctx.positionManager, ethAmount] })
-    });
-  }
-
-  if (tokenAllowance < tokenAmount) {
-    steps.push({
-      label: `approve ${coin.ticker}`,
-      to: token,
-      data: encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [ctx.positionManager, tokenAmount] })
-    });
-  }
-
+  // Everything the Position Manager can do (create the pool, add liquidity, refund dust
+  // ETH) is batched into ONE multicall. The ETH side is paid as msg.value and auto-wrapped
+  // by the PM, so there is no separate wrap or WETH-approve step.
+  const calls: Hex[] = [];
   if (existingPool === zeroAddress) {
-    steps.push({
-      label: "create and initialize pool",
-      to: ctx.positionManager,
-      data: encodeFunctionData({
+    calls.push(
+      encodeFunctionData({
         abi: positionManagerAbi,
         functionName: "createAndInitializePoolIfNecessary",
         args: [token0, token1, ctx.fee, sqrtPriceX96]
       })
-    });
+    );
   }
-
-  steps.push({
-    label: "mint liquidity position",
-    to: ctx.positionManager,
-    data: encodeFunctionData({
+  calls.push(
+    encodeFunctionData({
       abi: positionManagerAbi,
       functionName: "mint",
       args: [
@@ -550,9 +563,27 @@ export async function planUserWalletLiquidity(
         }
       ]
     })
-  });
+  );
+  calls.push(encodeFunctionData({ abi: positionManagerAbi, functionName: "refundETH", args: [] }));
 
-  const dryRun = await estimatePublicSteps(ctx, account, steps, nativeBalance);
+  // Fee estimate: the pool-create call is estimable on its own; add fixed buffers for the
+  // mint and the approval/permit so we can show a fee and a funded check without needing a
+  // signature or prior allowance server-side.
+  const gasPrice = await ctx.publicClient.getGasPrice();
+  let createGas = 0n;
+  if (existingPool === zeroAddress) {
+    try {
+      createGas = await ctx.publicClient.estimateGas({ account, to: ctx.positionManager, value: 0n, data: calls[0] });
+    } catch {
+      createGas = 4_800_000n;
+    }
+  }
+  const mintGasBuffer = 520_000n;
+  const approvalGasBuffer = permit.supported ? 100_000n : 70_000n;
+  const estimatedGas = createGas + mintGasBuffer + approvalGasBuffer;
+  const estimatedGasCost = estimatedGas * gasPrice;
+  const requiredNative = estimatedGasCost + ethAmount;
+
   return {
     account,
     chain: {
@@ -571,19 +602,57 @@ export async function planUserWalletLiquidity(
     token1,
     tickLower,
     tickUpper,
+    // One-multicall plan: `mode` tells the client whether to prepend a signed selfPermit
+    // (single transaction) or send a separate approve first (legacy tokens, two transactions).
+    mode: permit.supported ? ("permit" as const) : ("approve" as const),
+    value: ethAmount.toString(),
+    tokenAmountWei: tokenAmount.toString(),
+    deadline: deadline.toString(),
+    calls,
+    permit: permit.supported
+      ? {
+          name: permit.name,
+          version: "1",
+          chainId: env.robinhoodChainId,
+          verifyingContract: token,
+          spender: ctx.positionManager,
+          nonce: permit.nonce.toString()
+        }
+      : null,
+    approve: permit.supported
+      ? null
+      : {
+          to: token,
+          data: encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [ctx.positionManager, tokenAmount] })
+        },
     nativeBalanceEth: formatEther(nativeBalance),
     tokenBalance: formatUnits(tokenBalance, decimals),
-    wethBalanceEth: formatEther(wethBalance),
     tokenAmount: tokenAmountLabel,
     ethAmount: ethAmountLabel,
     existingPool,
-    steps: dryRun.steps,
-    gasPriceWei: dryRun.gasPrice.toString(),
-    estimatedGas: dryRun.estimatedGas.toString(),
-    estimatedGasCostEth: formatEther(dryRun.estimatedGasCost),
-    requiredNativeEth: formatEther(dryRun.requiredNative),
-    enoughNative: nativeBalance > dryRun.requiredNative
+    gasPriceWei: gasPrice.toString(),
+    estimatedGas: estimatedGas.toString(),
+    estimatedGasCostEth: formatEther(estimatedGasCost),
+    requiredNativeEth: formatEther(requiredNative),
+    enoughNative: nativeBalance > requiredNative
   };
+}
+
+async function detectTokenPermit(
+  publicClient: ReturnType<typeof getReadOnlyTradingContext>["publicClient"],
+  token: Address,
+  account: Address
+) {
+  try {
+    const [nonce, , name] = await Promise.all([
+      publicClient.readContract({ address: token, abi: permitProbeAbi, functionName: "nonces", args: [account] }),
+      publicClient.readContract({ address: token, abi: permitProbeAbi, functionName: "DOMAIN_SEPARATOR" }),
+      publicClient.readContract({ address: token, abi: permitProbeAbi, functionName: "name" })
+    ]);
+    return { supported: true as const, nonce: nonce as bigint, name: name as string };
+  } catch {
+    return { supported: false as const, nonce: 0n, name: "" };
+  }
 }
 
 export async function fetchDexscreenerPair(poolAddress: string) {

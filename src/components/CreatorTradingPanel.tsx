@@ -7,9 +7,46 @@ import {
   createWalletClient,
   custom,
   defineChain,
+  encodeFunctionData,
   http,
+  parseSignature,
   type Hex
 } from "viem";
+
+// Position Manager calls the client assembles: one multicall, optionally led by a signed permit.
+const positionManagerMulticallAbi = [
+  {
+    type: "function",
+    name: "multicall",
+    stateMutability: "payable",
+    inputs: [{ name: "data", type: "bytes[]" }],
+    outputs: [{ name: "results", type: "bytes[]" }]
+  },
+  {
+    type: "function",
+    name: "selfPermitIfNecessary",
+    stateMutability: "payable",
+    inputs: [
+      { name: "token", type: "address" },
+      { name: "value", type: "uint256" },
+      { name: "deadline", type: "uint256" },
+      { name: "v", type: "uint8" },
+      { name: "r", type: "bytes32" },
+      { name: "s", type: "bytes32" }
+    ],
+    outputs: []
+  }
+] as const;
+
+const permitTypes = {
+  Permit: [
+    { name: "owner", type: "address" },
+    { name: "spender", type: "address" },
+    { name: "value", type: "uint256" },
+    { name: "nonce", type: "uint256" },
+    { name: "deadline", type: "uint256" }
+  ]
+} as const;
 
 declare global {
   interface Window {
@@ -18,16 +55,6 @@ declare global {
     };
   }
 }
-
-type TradingStep = {
-  label: string;
-  to: string;
-  value: string;
-  data: Hex;
-  estimatedGas?: string | null;
-  estimable: boolean;
-  reason?: string;
-};
 
 type TradingPlan = {
   account: string;
@@ -38,13 +65,28 @@ type TradingPlan = {
     explorerUrl: string;
     nativeCurrency: { name: string; symbol: string; decimals: number };
   };
+  token: string;
+  positionManager: string;
+  mode: "permit" | "approve";
+  value: string;
+  tokenAmountWei: string;
+  deadline: string;
+  calls: Hex[];
+  permit: {
+    name: string;
+    version: string;
+    chainId: number;
+    verifyingContract: string;
+    spender: string;
+    nonce: string;
+  } | null;
+  approve: { to: string; data: Hex } | null;
   tokenAmount: string;
   ethAmount: string;
   requiredNativeEth: string;
   estimatedGasCostEth: string;
   enoughNative: boolean;
   existingPool: string;
-  steps: TradingStep[];
 };
 
 type CreatorTradingPanelProps = {
@@ -57,6 +99,8 @@ type CreatorTradingPanelProps = {
 // Turn the low-level on-chain step names into plain-language actions.
 function friendlyStepLabel(label: string) {
   const map: Record<string, string> = {
+    approve: "Approve your coins",
+    "open trading": "Open the market",
     "wrap ETH to WETH": "Prepare ETH",
     "approve WETH": "Approve ETH for the pool",
     "create and initialize pool": "Create the market",
@@ -160,26 +204,72 @@ export function CreatorTradingPanel({ contractAddress, ticker, chainId, explorer
       const walletClient = createWalletClient({ chain, transport: custom(window.ethereum) });
       const publicClient = createPublicClient({ chain, transport: http(plan.chain.rpcUrl) });
       const nextExecuted: Array<{ label: string; hash: string; status?: string }> = [];
+      const innerCalls: Hex[] = [...plan.calls];
 
-      for (const step of plan.steps) {
-        if (!step.estimable && step.label !== "mint liquidity position") {
-          throw new Error(`${step.label} is blocked: ${step.reason ?? "estimate failed"}`);
-        }
-        setMessage(`Waiting for wallet: ${step.label}`);
-        const hash = await walletClient.sendTransaction({
+      if (plan.mode === "permit" && plan.permit) {
+        // Sign the token approval off-chain so it can be batched into the single multicall.
+        setMessage("Sign the coin approval in your wallet…");
+        const signature = await walletClient.signTypedData({
           account: creatorWallet as Hex,
-          to: step.to as Hex,
-          value: BigInt(step.value),
-          data: step.data
+          domain: {
+            name: plan.permit.name,
+            version: plan.permit.version,
+            chainId: plan.permit.chainId,
+            verifyingContract: plan.permit.verifyingContract as Hex
+          },
+          types: permitTypes,
+          primaryType: "Permit",
+          message: {
+            owner: creatorWallet as Hex,
+            spender: plan.permit.spender as Hex,
+            value: BigInt(plan.tokenAmountWei),
+            nonce: BigInt(plan.permit.nonce),
+            deadline: BigInt(plan.deadline)
+          }
         });
-        nextExecuted.push({ label: step.label, hash });
+        const sig = parseSignature(signature);
+        const vByte = sig.v !== undefined ? Number(sig.v) : 27 + (sig.yParity ?? 0);
+        const selfPermitData = encodeFunctionData({
+          abi: positionManagerMulticallAbi,
+          functionName: "selfPermitIfNecessary",
+          args: [plan.token as Hex, BigInt(plan.tokenAmountWei), BigInt(plan.deadline), vByte, sig.r, sig.s]
+        });
+        innerCalls.unshift(selfPermitData);
+      } else if (plan.mode === "approve" && plan.approve) {
+        // Legacy token without permit: one approval tx, then the multicall.
+        setMessage("Approve your coins in your wallet…");
+        const approveHash = await walletClient.sendTransaction({
+          account: creatorWallet as Hex,
+          to: plan.approve.to as Hex,
+          data: plan.approve.data
+        });
+        nextExecuted.push({ label: "approve", hash: approveHash });
         setExecuted([...nextExecuted]);
-        setMessage(`Confirming: ${step.label}`);
-        const receipt = await publicClient.waitForTransactionReceipt({ hash });
-        nextExecuted[nextExecuted.length - 1] = { label: step.label, hash, status: receipt.status };
+        const approveReceipt = await publicClient.waitForTransactionReceipt({ hash: approveHash });
+        nextExecuted[nextExecuted.length - 1] = { label: "approve", hash: approveHash, status: approveReceipt.status };
         setExecuted([...nextExecuted]);
-        if (receipt.status !== "success") throw new Error(`${step.label} failed on-chain.`);
+        if (approveReceipt.status !== "success") throw new Error("Coin approval failed on-chain.");
       }
+
+      setMessage("Confirm the market in your wallet…");
+      const multicallData = encodeFunctionData({
+        abi: positionManagerMulticallAbi,
+        functionName: "multicall",
+        args: [innerCalls]
+      });
+      const hash = await walletClient.sendTransaction({
+        account: creatorWallet as Hex,
+        to: plan.positionManager as Hex,
+        value: BigInt(plan.value),
+        data: multicallData
+      });
+      nextExecuted.push({ label: "open trading", hash });
+      setExecuted([...nextExecuted]);
+      setMessage("Opening the market…");
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
+      nextExecuted[nextExecuted.length - 1] = { label: "open trading", hash, status: receipt.status };
+      setExecuted([...nextExecuted]);
+      if (receipt.status !== "success") throw new Error("Opening the market failed on-chain.");
 
       const response = await fetch(`/api/coins/${contractAddress}/trade/complete`, {
         method: "POST",
@@ -383,15 +473,22 @@ export function CreatorTradingPanel({ contractAddress, ticker, chainId, explorer
         </details>
       ) : plan ? (
         <details className="trade-details">
-          <summary>See the steps &amp; fee</summary>
+          <summary>How it works</summary>
           <div className="trade-steps">
-            {plan.steps.map((step) => (
-              <div className="trade-step" key={`${step.label}-${step.to}`}>
+            {(plan.mode === "permit"
+              ? [
+                  { label: "Sign the coin approval", state: "no gas" },
+                  { label: "Open the market", state: "1 transaction" }
+                ]
+              : [
+                  { label: "Approve your coins", state: "transaction 1" },
+                  { label: "Open the market", state: "transaction 2" }
+                ]
+            ).map((step) => (
+              <div className="trade-step" key={step.label}>
                 <span className="trade-step-dot" />
-                <span className="trade-step-label">{friendlyStepLabel(step.label)}</span>
-                <span className="trade-step-state">
-                  {step.estimable ? "ready" : step.label === "mint liquidity position" ? "after approvals" : "queued"}
-                </span>
+                <span className="trade-step-label">{step.label}</span>
+                <span className="trade-step-state">{step.state}</span>
               </div>
             ))}
           </div>

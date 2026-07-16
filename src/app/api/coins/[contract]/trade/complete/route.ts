@@ -66,9 +66,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ con
     return NextResponse.json({ error: "Connect the creator wallet that launched this token." }, { status: 403 });
   }
 
-  const mintStep = [...parsed.data.executed].reverse().find((step) => step.label === "mint liquidity position");
+  // The pool-create + mint runs in a single "open trading" multicall now; older clients sent
+  // a discrete "mint liquidity position" step. Accept either, else fall back to the last tx.
+  const mintStep =
+    [...parsed.data.executed].reverse().find((step) => step.label === "open trading" || step.label === "mint liquidity position") ??
+    parsed.data.executed.at(-1);
   if (!mintStep) {
-    return NextResponse.json({ error: "Mint liquidity transaction is required." }, { status: 400 });
+    return NextResponse.json({ error: "Trading transaction is required." }, { status: 400 });
   }
 
   try {
