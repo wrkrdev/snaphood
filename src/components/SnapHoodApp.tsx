@@ -88,6 +88,16 @@ const defaultTokenomics: Tokenomics = {
 const allocationColors = ["#00c805", "#0a9d5f", "#0ea5b7", "#3b7df6", "#f59e0b", "#ef476f"];
 const unallocatedColor = "#dbe4da";
 
+// Playful status messages that cycle while the snap is being remixed into a coin.
+const remixMessages = [
+  "Reading your snap…",
+  "Finding the meme angle…",
+  "Mixing the coin colors…",
+  "Naming your token…",
+  "Minting the vibe…",
+  "Almost there…"
+];
+
 type DexPair = {
   liquidity?: { usd?: number };
   volume?: { h24?: number };
@@ -161,6 +171,8 @@ function mergeCoins(current: LaunchedCoin[], incoming: LaunchedCoin[]) {
 
 export default function SnapHoodApp() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const creatorPanelRef = useRef<HTMLElement | null>(null);
+  const [remixStep, setRemixStep] = useState(0);
   const [health, setHealth] = useState<Health | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [email, setEmail] = useState("demo@snaphood.fun");
@@ -246,6 +258,23 @@ export default function SnapHoodApp() {
 
     void refreshDrafts();
   }, [user?.id]);
+
+  // Cycle the playful remixing messages while a snap is being generated.
+  useEffect(() => {
+    if (busy !== "generate") return;
+    setRemixStep(0);
+    const interval = window.setInterval(() => {
+      setRemixStep((step) => (step + 1) % remixMessages.length);
+    }, 1400);
+    return () => window.clearInterval(interval);
+  }, [busy]);
+
+  // When a draft appears or a launch succeeds, bring the creator panel into view so the
+  // reveal (and the snap → remix image at its top) is never left scrolled out of sight.
+  useEffect(() => {
+    if (!draft && !receipt) return;
+    creatorPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [draft?.id, receipt?.contractAddress]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -952,7 +981,7 @@ export default function SnapHoodApp() {
           </section>
 
           <aside className="creator-column" id="create">
-            <section className="panel launch-panel" aria-label="Token launch workflow">
+            <section className="panel launch-panel" aria-label="Token launch workflow" ref={creatorPanelRef}>
               <div className="panel-head">
                 <div>
                   <h2 className="panel-title">Create coin</h2>
@@ -1291,6 +1320,28 @@ export default function SnapHoodApp() {
                       Back to snaps
                     </button>
                   </div>
+                ) : busy === "generate" ? (
+                  <div className="remix-loading" aria-live="polite">
+                    <div className="remix-canvas">
+                      {selectedImage ? <img src={selectedImage} alt="Your snap" /> : null}
+                      <span className="remix-scan" />
+                      <span className="remix-grid" />
+                      <span className="remix-badge">
+                        <WandSparkles size={15} />
+                        remixing
+                      </span>
+                    </div>
+                    <div className="remix-status">
+                      <span className="remix-spinner" />
+                      <div>
+                        <strong>Turning your snap into a coin</strong>
+                        <span key={remixStep} className="remix-message">{remixMessages[remixStep]}</span>
+                      </div>
+                    </div>
+                    <div className="remix-bar">
+                      <span />
+                    </div>
+                  </div>
                 ) : (
                   <>
                     <input
@@ -1299,7 +1350,6 @@ export default function SnapHoodApp() {
                       type="file"
                       accept="image/*"
                       capture="environment"
-                      disabled={busy === "generate"}
                       onChange={(event) => {
                         const file = event.target.files?.[0];
                         if (file) void generate(file);
@@ -1308,38 +1358,22 @@ export default function SnapHoodApp() {
 
                     <button
                       type="button"
-                      className={busy === "generate" ? "dropzone compact-drop busy" : "dropzone compact-drop"}
+                      className="dropzone compact-drop"
                       onClick={() => fileInputRef.current?.click()}
-                      disabled={busy === "generate"}
                     >
-                      {busy === "generate" && selectedImage ? (
-                        <>
-                          <img className="preview-image" src={selectedImage} alt="Uploaded snap" />
-                          <span className="drop-loading">
-                            <WandSparkles size={16} />
-                            Remixing your snap…
-                          </span>
-                        </>
-                      ) : (
-                        <span className="dropzone-content">
-                          <span className="drop-icon">
-                            <Camera size={22} />
-                          </span>
-                          <strong>Snap to coin</strong>
-                          <span>Take a photo or upload one — we turn it into coin art and a ready-to-edit token.</span>
+                      <span className="dropzone-content">
+                        <span className="drop-icon">
+                          <Camera size={22} />
                         </span>
-                      )}
+                        <strong>Snap to coin</strong>
+                        <span>Take a photo or upload one — we turn it into coin art and a ready-to-edit token.</span>
+                      </span>
                     </button>
 
                     <div className="snap-hint-row">
-                      <button
-                        className="btn ghost"
-                        disabled={busy === "generate"}
-                        onClick={() => fileInputRef.current?.click()}
-                        type="button"
-                      >
+                      <button className="btn ghost" onClick={() => fileInputRef.current?.click()} type="button">
                         <Upload size={16} />
-                        {busy === "generate" ? "Remixing" : "Upload a photo"}
+                        Upload a photo
                       </button>
                       <div className="snap-steps" aria-hidden="true">
                         <span><b>1</b> Snap</span>

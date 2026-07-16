@@ -67,6 +67,21 @@ function friendlyStepLabel(label: string) {
   return label;
 }
 
+// Render a wei-derived ETH string as a short, human number instead of an 18-decimal tail.
+function formatEth(value?: string | null) {
+  if (value === undefined || value === null || value === "") return "—";
+  const n = Number(value);
+  if (!Number.isFinite(n)) return String(value);
+  if (n === 0) return "0 ETH";
+  if (n > 0 && n < 0.00001) return "<0.00001 ETH";
+  return `${Number(n.toFixed(5))} ETH`;
+}
+
+const liquidityPresets = [
+  { key: "starter", label: "Starter", token: "1000000", eth: "0.0001" },
+  { key: "bigger", label: "Bigger", token: "10000000", eth: "0.001" }
+];
+
 export function CreatorTradingPanel({ contractAddress, ticker, chainId, explorerUrl }: CreatorTradingPanelProps) {
   const [walletAddress, setWalletAddress] = useState("");
   const [tokenAmount, setTokenAmount] = useState("1000000");
@@ -209,154 +224,176 @@ export function CreatorTradingPanel({ contractAddress, ticker, chainId, explorer
   const planReady = Boolean(plan);
   const funded = plan?.enoughNative ?? false;
   const done = Boolean(result?.poolAddress);
-  const isError = message.includes("Could not") || message.includes("blocked") || message.includes("needs");
+  const executing = busy === "execute";
+  const isError = message.includes("Could not") || message.includes("blocked") || message.includes("failed");
+  const shortWallet = walletAddress ? `${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)}` : "";
+  const beat = done ? 3 : connected ? (planReady ? 2 : 1) : 0;
+  const txBase = explorerUrl.replace(/\/address\/.*$/, "");
+
+  function pickAmounts(token: string, eth: string) {
+    setTokenAmount(token);
+    setEthAmount(eth);
+    setPlan(null);
+  }
 
   return (
-    <section className="creator-trading-panel guided" aria-label="Make this coin tradable">
-      <div className="guided-head">
-        <p className="eyebrow">unlock trading</p>
-        <h2>Make ${ticker} tradable</h2>
-        <p className="guided-lede">
-          Add a little starting liquidity so anyone can buy and sell ${ticker}. This also turns on the live price chart.
-          You approve everything in your own wallet.
-        </p>
+    <section className="trade-card" id="trade-card" aria-label="Open trading">
+      <div className="trade-card-head">
+        <span className="trade-card-emoji">
+          <Rocket size={20} />
+        </span>
+        <div>
+          <p className="eyebrow">unlock trading</p>
+          <h2>Give ${ticker} its first market</h2>
+        </div>
       </div>
 
       {done ? (
-        <div className="trade-done">
-          <span className="trade-done-mark">
-            <Sparkles size={18} />
+        <div className="trade-live">
+          <span className="trade-live-burst">
+            <Sparkles size={24} />
           </span>
-          <div className="trade-done-copy">
-            <strong>${ticker} is tradable</strong>
-            <span>People can trade it now. Your live chart usually appears within a few minutes.</span>
-          </div>
+          <h3>${ticker} is live to trade 🎉</h3>
+          <p>Anyone can buy and sell it now. Your price chart usually shows up within a few minutes.</p>
           {result?.poolAddress ? (
-            <a
-              className="btn ghost small"
-              href={`${explorerUrl.replace(/\/address\/.*$/, "")}/address/${result.poolAddress}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              View liquidity <ExternalLink size={13} />
+            <a className="btn ghost" href={`${txBase}/address/${result.poolAddress}`} target="_blank" rel="noreferrer">
+              View liquidity <ExternalLink size={14} />
             </a>
           ) : null}
         </div>
       ) : (
-        <ol className="guided-steps">
-          <li className={connected ? "guided-step done" : "guided-step active"}>
-            <span className="step-index">{connected ? <Check size={14} /> : 1}</span>
-            <div className="step-body">
-              <strong>Connect your wallet</strong>
-              <span>Use the same wallet that launched ${ticker}.</span>
-              <button className="btn ghost small" disabled={Boolean(busy)} onClick={connectWallet} type="button">
-                <Wallet size={14} />
-                {connected ? `${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)}` : busy === "wallet" ? "Connecting" : "Connect wallet"}
+        <>
+          <p className="trade-lede">
+            Pair a little ${ticker}{" "}
+            with ETH to open a market — that&apos;s what unlocks buying, selling, and the live chart. You sign it in your
+            own wallet.
+          </p>
+
+          <div className="trade-beats" aria-hidden="true">
+            {["Fund", "Sign", "Live"].map((label, index) => (
+              <div key={label} className={index < beat ? "beat done" : index === beat ? "beat active" : "beat"}>
+                <span className="beat-dot">{index < beat ? <Check size={12} /> : index + 1}</span>
+                {label}
+              </div>
+            ))}
+          </div>
+
+          <div className="trade-amounts">
+            <div className="trade-amounts-head">
+              <span>Starting liquidity</span>
+              <div className="preset-chips">
+                {liquidityPresets.map((preset) => (
+                  <button
+                    key={preset.key}
+                    type="button"
+                    className={tokenAmount === preset.token && ethAmount === preset.eth ? "preset active" : "preset"}
+                    onClick={() => pickAmounts(preset.token, preset.eth)}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="trade-input-grid">
+              <label className="label">
+                Coins in the pool
+                <input
+                  className="field"
+                  inputMode="decimal"
+                  value={tokenAmount}
+                  onChange={(event) => {
+                    setTokenAmount(event.target.value);
+                    setPlan(null);
+                  }}
+                />
+              </label>
+              <label className="label">
+                ETH to pair
+                <input
+                  className="field"
+                  inputMode="decimal"
+                  value={ethAmount}
+                  onChange={(event) => {
+                    setEthAmount(event.target.value);
+                    setPlan(null);
+                  }}
+                />
+              </label>
+            </div>
+          </div>
+
+          {plan ? (
+            <div className="trade-summary">
+              <div className="trade-summary-row">
+                <span>Network fee</span>
+                <strong>≈ {formatEth(plan.estimatedGasCostEth)}</strong>
+              </div>
+              <div className={funded ? "trade-summary-row ok" : "trade-summary-row warn"}>
+                <span>{funded ? "Wallet balance" : "Add a little ETH"}</span>
+                <strong>{funded ? "Enough ✓" : `≈ ${formatEth(plan.requiredNativeEth)} needed`}</strong>
+              </div>
+            </div>
+          ) : null}
+
+          {connected ? (
+            <div className="trade-wallet-chip">
+              <Wallet size={13} />
+              {shortWallet}
+              <button className="text-action" onClick={connectWallet} type="button">
+                switch
               </button>
             </div>
-          </li>
+          ) : null}
 
-          <li className={connected ? "guided-step active" : "guided-step"}>
-            <span className="step-index">2</span>
-            <div className="step-body">
-              <strong>Choose the starting liquidity</strong>
-              <span>A small amount is plenty to open trading.</span>
-              <div className="trade-input-grid">
-                <label className="label">
-                  Coins for the pool
-                  <input
-                    className="field"
-                    inputMode="decimal"
-                    value={tokenAmount}
-                    onChange={(event) => setTokenAmount(event.target.value)}
-                  />
-                </label>
-                <label className="label">
-                  ETH to pair
-                  <input
-                    className="field"
-                    inputMode="decimal"
-                    value={ethAmount}
-                    onChange={(event) => setEthAmount(event.target.value)}
-                  />
-                </label>
-              </div>
-              {planReady && !funded ? (
-                <p className="cta-hint">
-                  This wallet needs about {plan?.requiredNativeEth} ETH (the pair amount plus a small network fee). Top it
-                  up, then try again.
-                </p>
-              ) : null}
-            </div>
-          </li>
-
-          <li className={planReady && funded ? "guided-step active" : "guided-step"}>
-            <span className="step-index">3</span>
-            <div className="step-body">
-              <strong>Confirm in your wallet</strong>
-              <span>Your wallet will ask you to approve and sign — that&apos;s the last step.</span>
-              {!planReady ? (
-                <button className="btn primary small" disabled={Boolean(busy) || !connected} onClick={prepare} type="button">
-                  <Activity size={14} />
-                  {busy === "prepare" ? "Checking" : "Review setup"}
-                </button>
-              ) : (
-                <button className="btn primary small" disabled={Boolean(busy) || !funded} onClick={execute} type="button">
-                  <Rocket size={14} />
-                  {busy === "execute" ? "Confirm in wallet" : "Make it tradable"}
-                </button>
-              )}
-            </div>
-          </li>
-        </ol>
+          {!connected ? (
+            <button className="btn primary trade-cta" disabled={Boolean(busy)} onClick={connectWallet} type="button">
+              <Wallet size={17} />
+              {busy === "wallet" ? "Connecting…" : "Connect wallet"}
+            </button>
+          ) : !planReady ? (
+            <button className="btn primary trade-cta" disabled={Boolean(busy)} onClick={prepare} type="button">
+              <Activity size={17} />
+              {busy === "prepare" ? "Checking…" : "Review liquidity"}
+            </button>
+          ) : (
+            <button className="btn primary trade-cta" disabled={Boolean(busy) || !funded} onClick={execute} type="button">
+              <Rocket size={17} />
+              {executing ? "Confirm in your wallet…" : funded ? "Go live 🚀" : "Add ETH to continue"}
+            </button>
+          )}
+        </>
       )}
 
-      {message ? <div className={isError ? "toast error" : "toast"}>{message}</div> : null}
-
-      {plan ? (
-        <details className="trade-details">
-          <summary>What this costs &amp; the steps</summary>
-          <div className="admin-result">
-            <div>
-              <span>ETH needed</span>
-              <strong>{plan.requiredNativeEth}</strong>
-            </div>
-            <div>
-              <span>Network fee (est.)</span>
-              <strong>{plan.estimatedGasCostEth}</strong>
-            </div>
-            <div>
-              <span>Wallet funded</span>
-              <strong>{funded ? "yes" : "not yet"}</strong>
-            </div>
-            <ul>
-              {plan.steps.map((step) => (
-                <li key={`${step.label}-${step.to}`}>
-                  <span>{friendlyStepLabel(step.label)}</span>
-                  <strong>{step.estimable ? "ready" : step.label === "mint liquidity position" ? "after approvals" : "needs a step first"}</strong>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </details>
-      ) : null}
+      {message && !done ? <div className={isError ? "toast error" : "toast"}>{message}</div> : null}
 
       {executed.length ? (
         <details className="trade-details" open>
           <summary>Your wallet transactions</summary>
-          <div className="admin-result">
-            <ul>
-              {executed.map((step) => (
-                <li key={step.hash}>
-                  <span>{friendlyStepLabel(step.label)}</span>
-                  <strong>
-                    <a href={`${explorerUrl.replace(/\/address\/.*$/, "")}/tx/${step.hash}`} target="_blank" rel="noreferrer">
-                      {step.status ?? "sent"} <ExternalLink size={12} />
-                    </a>
-                  </strong>
-                </li>
-              ))}
-            </ul>
+          <div className="trade-steps">
+            {executed.map((step) => (
+              <div className="trade-step" key={step.hash}>
+                <span className="trade-step-dot done" />
+                <span className="trade-step-label">{friendlyStepLabel(step.label)}</span>
+                <a className="trade-step-state" href={`${txBase}/tx/${step.hash}`} target="_blank" rel="noreferrer">
+                  {step.status ?? "sent"} <ExternalLink size={12} />
+                </a>
+              </div>
+            ))}
+          </div>
+        </details>
+      ) : plan ? (
+        <details className="trade-details">
+          <summary>See the steps &amp; fee</summary>
+          <div className="trade-steps">
+            {plan.steps.map((step) => (
+              <div className="trade-step" key={`${step.label}-${step.to}`}>
+                <span className="trade-step-dot" />
+                <span className="trade-step-label">{friendlyStepLabel(step.label)}</span>
+                <span className="trade-step-state">
+                  {step.estimable ? "ready" : step.label === "mint liquidity position" ? "after approvals" : "queued"}
+                </span>
+              </div>
+            ))}
           </div>
         </details>
       ) : null}

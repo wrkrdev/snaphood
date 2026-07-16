@@ -31,13 +31,27 @@ const tokenomicsSchema = z.object({
     .catch(env.defaultTokenSupply),
   decimals: z.coerce.number().int().min(0).max(36).catch(env.defaultTokenDecimals),
   allocation: z
-    .array(
-      z.object({
-        label: z.coerce.string().trim().min(1).max(60),
-        percent: z.coerce.number().min(0).max(100)
-      })
+    .preprocess(
+      // Models label allocation fields inconsistently (category/percentage/share/name);
+      // map the common aliases onto {label, percent} so the AI's split survives instead
+      // of being silently replaced by the default.
+      (value) =>
+        Array.isArray(value)
+          ? value.map((row) => {
+              const record = row && typeof row === "object" ? (row as Record<string, unknown>) : {};
+              return {
+                label: record.label ?? record.category ?? record.name ?? record.bucket ?? record.slice,
+                percent: record.percent ?? record.percentage ?? record.share ?? record.allocation ?? record.pct
+              };
+            })
+          : value,
+      z.array(
+        z.object({
+          label: z.coerce.string().trim().min(1).max(60),
+          percent: z.coerce.number().min(0).max(100)
+        })
+      ).max(6)
     )
-    .max(6)
     .catch(fallbackAllocation),
   notes: z.array(z.coerce.string().trim().min(1).max(160)).max(5).catch(fallbackNotes)
 });
