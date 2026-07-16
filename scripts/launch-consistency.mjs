@@ -102,8 +102,10 @@ assert(
   "second launch should return the same contract and tx"
 );
 
-const eventCount = await countLaunchCompletedEvents();
-assert(eventCount === 1, `expected one launch.completed event after retry, got ${eventCount}`);
+const startedEventCount = await countLaunchEvents("launch.started");
+const completedEventCount = await countLaunchEvents("launch.completed");
+assert(startedEventCount === 1, `expected one launch.started event after retry, got ${startedEventCount}`);
+assert(completedEventCount === 1, `expected one launch.completed event after retry, got ${completedEventCount}`);
 
 const feed = await getJson(`/api/coins?chainId=${first.launch.chainId}`);
 const feedCoin = feed.coins?.find(
@@ -120,7 +122,8 @@ console.log(
       draftId,
       contractAddress: first.launch.contractAddress,
       txHash: first.launch.txHash,
-      launchCompletedEvents: eventCount,
+      launchStartedEvents: startedEventCount,
+      launchCompletedEvents: completedEventCount,
       feedVisible: true,
       reused: second.launch.reused
     },
@@ -140,16 +143,16 @@ async function cleanupDraft() {
   }
 }
 
-async function countLaunchCompletedEvents() {
+async function countLaunchEvents(eventType) {
   const countPool = new Pool({ connectionString: databaseUrl, max: 1 });
   try {
     const result = await countPool.query(
       `
         select count(*)::int as count
         from snaphood_launch_events
-        where draft_id = $1 and event_type = 'launch.completed'
+        where draft_id = $1 and event_type = $2
       `,
-      [draftId]
+      [draftId, eventType]
     );
     return result.rows[0].count;
   } finally {

@@ -128,16 +128,48 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "This draft cannot be launched. Create a new draft and try again." }, { status: 409 });
   }
 
-  const transition = await query<{ id: string }>(
-    `
-      update snaphood_token_drafts
-      set status = 'launching', updated_at = now()
-      where id = $1 and user_id = $2 and status = 'draft'
-      returning id
-    `,
-    [parsed.data.draftId, user.id]
-  );
-  if (!transition.rows[0]) {
+  const acceptedAt = new Date().toISOString();
+  const transition = await withTransaction(async (client) => {
+    const result = await client.query<{ id: string }>(
+      `
+        update snaphood_token_drafts
+        set status = 'launching', updated_at = now()
+        where id = $1 and user_id = $2 and status = 'draft'
+        returning id
+      `,
+      [parsed.data.draftId, user.id]
+    );
+
+    if (result.rows[0]) {
+      await client.query(
+        "insert into snaphood_launch_events (id, draft_id, event_type, payload) values ($1, $2, $3, $4)",
+        [
+          crypto.randomUUID(),
+          parsed.data.draftId,
+          "launch.started",
+          JSON.stringify({
+            mode: env.launchMode,
+            chainId: env.robinhoodChainId,
+            requestedToken: {
+              name: parsed.data.name,
+              ticker: parsed.data.ticker,
+              supply: parsed.data.tokenomics.supply,
+              decimals: parsed.data.tokenomics.decimals
+            },
+            guardrails: {
+              version: guardrailVersion,
+              acceptedAt,
+              acceptedBy: user.id,
+              acknowledgements: parsed.data.acknowledgements
+            }
+          })
+        ]
+      );
+    }
+
+    return result.rows[0] ?? null;
+  });
+  if (!transition) {
     return NextResponse.json({ error: "This draft is already being launched." }, { status: 409 });
   }
 
@@ -180,7 +212,7 @@ export async function POST(request: Request) {
             launch,
             guardrails: {
               version: guardrailVersion,
-              acceptedAt: new Date().toISOString(),
+              acceptedAt,
               acceptedBy: user.id,
               acknowledgements: parsed.data.acknowledgements
             }
@@ -191,9 +223,25 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ launch });
   } catch (error) {
-    await query("update snaphood_token_drafts set status = 'failed', updated_at = now() where id = $1", [
-      parsed.data.draftId
-    ]);
+    await withTransaction(async (client) => {
+      await client.query("update snaphood_token_drafts set status = 'failed', updated_at = now() where id = $1", [
+        parsed.data.draftId
+      ]);
+      await client.query(
+        "insert into snaphood_launch_events (id, draft_id, event_type, payload) values ($1, $2, $3, $4)",
+        [
+          crypto.randomUUID(),
+          parsed.data.draftId,
+          "launch.failed",
+          JSON.stringify({
+            mode: env.launchMode,
+            chainId: env.robinhoodChainId,
+            error: error instanceof Error ? error.message : "Launch failed.",
+            failedAt: new Date().toISOString()
+          })
+        ]
+      );
+    });
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Launch failed." },
       { status: 500 }
