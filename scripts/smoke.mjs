@@ -10,6 +10,7 @@ let signedIn = false;
 await checkPage("/", "SnapHood");
 await checkSecurityHeaders("/");
 await checkOriginGuard();
+await postRawStatus("/api/auth/start", "{", 400, "malformed auth JSON");
 await checkPage("/stack", "Wrkr proof");
 await checkPage("/robots.txt", "Sitemap:");
 
@@ -129,6 +130,9 @@ if (health.readiness?.demoAuthEnabled) {
 if (signedIn) {
   const draftsPayload = await checkJson("/api/me/drafts", "user drafts");
   assert(Array.isArray(draftsPayload.drafts), "authenticated drafts response should include an array");
+  if (health.readiness?.launchMode === "demo") {
+    await postRawStatus("/api/launch", "{", 400, "malformed launch JSON");
+  }
 }
 
 if (verifyGenerate) {
@@ -261,6 +265,21 @@ async function checkStatus(path, expectedStatus, name) {
   const response = await fetch(`${baseUrl}${path}`, {
     headers: withCookies({ "x-forwarded-for": syntheticIp })
   });
+  const text = await response.text();
+  assert(response.status === expectedStatus, `${path} should return ${expectedStatus}, got ${response.status}: ${text}`);
+  checks.push({ name, status: response.status });
+}
+
+async function postRawStatus(path, body, expectedStatus, name) {
+  const response = await fetch(`${baseUrl}${path}`, {
+    method: "POST",
+    headers: withCookies({
+      "content-type": "application/json",
+      "x-forwarded-for": syntheticIp
+    }),
+    body
+  });
+  captureCookies(response);
   const text = await response.text();
   assert(response.status === expectedStatus, `${path} should return ${expectedStatus}, got ${response.status}: ${text}`);
   checks.push({ name, status: response.status });

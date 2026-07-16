@@ -5,7 +5,7 @@ import { query, withTransaction } from "@/lib/db";
 import { env, isAdminEmail } from "@/lib/env";
 import { launchToken } from "@/lib/launch";
 import { applyRateLimit } from "@/lib/rate-limit";
-import { rejectCrossOrigin } from "@/lib/request-guards";
+import { readJsonBody, rejectCrossOrigin } from "@/lib/request-guards";
 
 export const runtime = "nodejs";
 
@@ -73,7 +73,10 @@ export async function POST(request: Request) {
   });
   if (limited) return limited;
 
-  const parsed = schema.safeParse(await request.json());
+  const json = await readJsonBody(request);
+  if (!json.ok) return json.response;
+
+  const parsed = schema.safeParse(json.body);
   if (!parsed.success) {
     return NextResponse.json({ error: "Launch form is incomplete or invalid." }, { status: 400 });
   }

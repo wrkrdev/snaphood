@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createMagicLink, createSession, sendMagicLink } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { applyRateLimit } from "@/lib/rate-limit";
-import { rejectCrossOrigin } from "@/lib/request-guards";
+import { readJsonBody, rejectCrossOrigin } from "@/lib/request-guards";
 
 const schema = z.object({
   email: z.string().email()
@@ -20,7 +20,10 @@ export async function POST(request: Request) {
   });
   if (limited) return limited;
 
-  const body = schema.safeParse(await request.json());
+  const json = await readJsonBody(request);
+  if (!json.ok) return json.response;
+
+  const body = schema.safeParse(json.body);
   if (!body.success) {
     return NextResponse.json({ error: "Enter a valid email address." }, { status: 400 });
   }

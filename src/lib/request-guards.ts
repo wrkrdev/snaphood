@@ -23,6 +23,33 @@ export function rejectCrossOrigin(request: Request) {
   return null;
 }
 
+export async function readJsonBody(request: Request) {
+  try {
+    return { ok: true as const, body: await request.json() as unknown };
+  } catch {
+    return {
+      ok: false as const,
+      response: NextResponse.json({ error: "Request body must be valid JSON." }, { status: 400 })
+    };
+  }
+}
+
+export async function readOptionalJsonBody(request: Request) {
+  const text = await request.text();
+  if (!text.trim()) {
+    return { ok: true as const, body: {} as unknown };
+  }
+
+  try {
+    return { ok: true as const, body: JSON.parse(text) as unknown };
+  } catch {
+    return {
+      ok: false as const,
+      response: NextResponse.json({ error: "Request body must be valid JSON." }, { status: 400 })
+    };
+  }
+}
+
 function expectedOriginFor(request: Request) {
   const appOrigin = safeOrigin(env.appUrl);
   if (appOrigin) return appOrigin;

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireAdmin } from "@/lib/admin";
 import { getAdminCoin, recordLaunchEvent, recordLiquidity } from "@/lib/admin-coins";
 import { applyRateLimit } from "@/lib/rate-limit";
-import { rejectCrossOrigin } from "@/lib/request-guards";
+import { readOptionalJsonBody, rejectCrossOrigin } from "@/lib/request-guards";
 import { planOrSeedLiquidity } from "@/lib/trading";
 
 export const runtime = "nodejs";
@@ -22,7 +22,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ con
   if ("response" in admin) return admin.response;
 
   const { contract } = await params;
-  const parsed = schema.safeParse(await request.json().catch(() => ({})));
+  const json = await readOptionalJsonBody(request);
+  if (!json.ok) return json.response;
+
+  const parsed = schema.safeParse(json.body);
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid trading request." }, { status: 400 });
   }
