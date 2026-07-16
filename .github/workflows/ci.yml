@@ -31,6 +31,9 @@ jobs:
       - name: Check public env example
         run: npm run verify:env-example
 
+      - name: Check committed secrets
+        run: npm run verify:secrets
+
       - name: Verify contract artifact
         run: npm run contract:verify
 

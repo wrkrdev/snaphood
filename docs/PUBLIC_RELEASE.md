@@ -5,6 +5,7 @@ Before making SnapHood public:
 - Confirm `.env.local` and generated upload folders are not committed.
 - Rotate any key that was ever pasted into a shell, log, screenshot, or chat.
 - Keep GitHub Actions CI green on `main`.
+- Run `npm run verify:secrets` before changing repository visibility.
 - Run `npm run verify:readiness -- --profile=public` and resolve every failure.
 - Run `npm run db:migrate && npm run db:seed` on the deployment database.
 - Disable demo auth and verify Wrkr magic-link email delivery.
