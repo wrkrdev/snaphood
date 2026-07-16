@@ -48,6 +48,7 @@ async function checkPackageScripts() {
     "verify:env-example",
     "verify:secrets",
     "verify:smoke",
+    "verify:generate",
     "verify:ai-normalization",
     "verify:image-validation",
     "verify:launch-consistency",
@@ -115,6 +116,7 @@ async function checkReleaseDocs() {
   for (const phrase of [
     "Rotate any key",
     "npm run verify:secrets",
+    "npm run verify:generate",
     "npm run verify:readiness -- --profile=public",
     "npm run prod:start",
     "npm run prod:ensure",

@@ -20,6 +20,7 @@
     "verify:env-example": "node scripts/check-env-example.mjs",
     "verify:secrets": "node scripts/check-secrets.mjs",
     "verify:smoke": "node scripts/smoke.mjs",
+    "verify:generate": "node scripts/generate-smoke.mjs",
     "verify:ai-normalization": "tsx scripts/ai-normalization.ts",
     "verify:image-validation": "tsx scripts/image-validation.ts",
     "verify:auth-challenge-consistency": "node scripts/auth-challenge-consistency.mjs",

@@ -13,6 +13,7 @@ Before making SnapHood public:
 - Verify response security headers through `npm run verify:smoke`.
 - Verify cross-origin mutation protection through `npm run verify:smoke`.
 - Verify unsafe upload rejection through `SNAPHOOD_SMOKE_GENERATE=true npm run verify:smoke`.
+- Verify the public-mode upload-to-draft path through `npm run verify:generate`.
 - Disable demo auth and verify Wrkr magic-link email delivery.
 - Set `NEXT_PUBLIC_APP_URL` to the HTTPS URL from `wrkr expose` or your production domain.
 - Verify Redis-backed rate limits are active for auth, generation, launch, and admin trading endpoints.

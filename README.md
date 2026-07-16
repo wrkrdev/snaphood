@@ -104,10 +104,13 @@ To also verify the upload-to-draft flow, run:
 
 ```bash
 SNAPHOOD_SMOKE_GENERATE=true npm run verify:smoke
+npm run verify:generate
 ```
 
-That path signs in, uploads a generated 1x1 PNG, and checks that `/api/generate` returns persisted draft metadata and image URLs.
-It may call configured AI/image providers, so keep it opt-in for low-cost routine checks.
+The `SNAPHOOD_SMOKE_GENERATE=true` smoke path uses normal demo or dry-run auth. `verify:generate` creates a temporary
+DB-backed session directly, so it can verify the real `/api/generate` route even when public auth sends Wrkr email links.
+Both paths upload a generated 1x1 PNG and check that `/api/generate` returns persisted draft metadata and image URLs.
+They may call configured AI/image providers, so keep them opt-in for low-cost routine checks.
 
 To verify launch idempotency without spending funds, restart the local app with `TOKEN_LAUNCH_MODE=demo`, then run:
 
