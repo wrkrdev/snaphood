@@ -92,13 +92,20 @@ export default async function CoinPage({ params }: { params: Promise<{ contract:
           </div>
           <p className="coin-detail-description">{coin.description}</p>
           <div className="coin-detail-actions">
-            <a className="btn primary" href={coin.dexscreenerUrl ?? coin.explorerUrl} target="_blank" rel="noreferrer">
-              <Flame size={16} />
-              {coin.dexscreenerUrl ? "Open chart" : "Open contract"}
-            </a>
+            {coin.dexscreenerUrl ? (
+              <a className="btn primary" href={coin.dexscreenerUrl} target="_blank" rel="noreferrer">
+                <Flame size={16} />
+                Open chart
+              </a>
+            ) : (
+              <a className="btn primary" href="#make-tradable">
+                <Flame size={16} />
+                {coin.poolAddress ? "Finish the chart" : "Make it tradable"}
+              </a>
+            )}
             <a className="btn ghost" href={coin.explorerUrl} target="_blank" rel="noreferrer">
               <ExternalLink size={16} />
-              Contract
+              Proof
             </a>
           </div>
         </div>
@@ -108,51 +115,45 @@ export default async function CoinPage({ params }: { params: Promise<{ contract:
         <div className="detail-stat">
           <Activity size={18} />
           <span>Price</span>
-          <strong>{pair?.priceUsd ? `$${pair.priceUsd}` : "pending"}</strong>
+          <strong>{pair?.priceUsd ? `$${pair.priceUsd}` : "—"}</strong>
         </div>
         <div className="detail-stat">
           <WalletCards size={18} />
           <span>Liquidity</span>
-          <strong>{pair?.liquidity?.usd ? `$${pair.liquidity.usd.toFixed(2)}` : "pending"}</strong>
+          <strong>{pair?.liquidity?.usd ? `$${pair.liquidity.usd.toFixed(2)}` : "—"}</strong>
         </div>
         <div className="detail-stat">
           <Flame size={18} />
           <span>24h volume</span>
-          <strong>{pair?.volume?.h24 ? `$${pair.volume.h24.toFixed(2)}` : "pending"}</strong>
+          <strong>{pair?.volume?.h24 ? `$${pair.volume.h24.toFixed(2)}` : "—"}</strong>
         </div>
         <div className="detail-stat">
           <ShieldCheck size={18} />
-          <span>Chain</span>
-          <strong>{coin.chainId}</strong>
+          <span>Status</span>
+          <strong className={coin.dexscreenerUrl ? "stat-live" : undefined}>
+            {coin.dexscreenerUrl ? "Chart live" : coin.poolAddress ? "Chart soon" : "Just launched"}
+          </strong>
         </div>
       </section>
 
-      {!coin.poolAddress ? (
-        <>
-          <section className="trade-status">
-            <div>
-              <p className="eyebrow">not tradable yet</p>
-              <h2>Pool needed for Dexscreener</h2>
-            </div>
-            <p>
-              This token contract is deployed on-chain, but it does not have a recorded Uniswap pool, liquidity position, or
-              indexer swap. The creator wallet can add token and ETH liquidity below; Dexscreener usually appears after a
-              real pool exists and indexing sees trading activity.
-            </p>
-          </section>
+      <div id="make-tradable">
+        {!coin.poolAddress ? (
           <CreatorTradingPanel
             contractAddress={coin.contractAddress}
             ticker={coin.ticker}
             chainId={coin.chainId}
             explorerUrl={coin.explorerUrl}
           />
-        </>
-      ) : !coin.dexscreenerUrl ? (
-        <DexSyncPanel contractAddress={coin.contractAddress} />
-      ) : null}
+        ) : !coin.dexscreenerUrl ? (
+          <DexSyncPanel contractAddress={coin.contractAddress} />
+        ) : null}
+      </div>
 
-      <section className="coin-ledger">
-        <h2>Launch Proof</h2>
+      <details className="coin-ledger proof-block">
+        <summary>
+          <span className="proof-block-title">Proof &amp; contract details</span>
+          <span className="proof-block-hint">for anyone who wants to verify it on-chain</span>
+        </summary>
         <dl>
           <div>
             <dt>Token contract</dt>
@@ -190,7 +191,7 @@ export default async function CoinPage({ params }: { params: Promise<{ contract:
             </div>
           ) : null}
         </dl>
-      </section>
+      </details>
 
       {tokenomics ? (
         <section className="coin-tokenomics">
@@ -232,8 +233,8 @@ export default async function CoinPage({ params }: { params: Promise<{ contract:
         <section className="proof-timeline">
           <div className="proof-head">
             <div>
-              <p className="eyebrow">public proof</p>
-              <h2>Audit Timeline</h2>
+              <p className="eyebrow">launch progress</p>
+              <h2>Launch timeline</h2>
             </div>
             <a className="btn ghost small" href={`/api/coins/${coin.contractAddress}/proof`} target="_blank" rel="noreferrer">
               <ExternalLink size={14} />

@@ -1,11 +1,19 @@
 import { NextResponse } from "next/server";
 import { getLaunchProof } from "@/lib/coins";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 const publicProofCacheHeaders = {
   "Cache-Control": "public, max-age=15, stale-while-revalidate=45"
 };
 
-export async function GET(_request: Request, { params }: { params: Promise<{ contract: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ contract: string }> }) {
+  const limited = await applyRateLimit(request, {
+    name: "coins:proof:ip",
+    limit: 120,
+    windowSeconds: 60
+  });
+  if (limited) return limited;
+
   const { contract } = await params;
 
   try {

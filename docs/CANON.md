@@ -13,15 +13,20 @@ SnapHood should feel like a seamless snap-to-token launchpad for normal users, n
 
 Public proof matters, but proof should support the user journey rather than dominate it. Prefer labels like `Proof`, `Receipt`, `Chart`, `Launch`, and `Remix` over low-level words like `contract`, `tx`, `stack`, or chain internals in primary UI.
 
-## Next Session Priorities
+## Shipped (2026-07-16 UX pass)
 
-- Rate limits: audit every public and authenticated route and ensure every mutation, AI/image action, auth action, launch/trading action, sync action, and expensive read has a deliberate rate-limit policy.
-- Upload-to-draft UI: the post-upload state currently feels scattered and pale. Rework it into a polished reveal with the original snap, image remix, name/ticker, meme angle, tokenomics, and primary next action in one coherent panel.
-- Tokenomics editor: make allocation editing logical and constrained. Percentages must not exceed 100, should communicate the remaining amount, and should include a clean graphical allocation representation.
-- Launch completion: after launch, keep the user centered in the same flow. Do not jump the user into a disconnected receipt/toast state. Show launch success, proof, chart status, liquidity/trading status, and next action in-place.
-- Chart readiness: `chart unlock pending` is not understandable enough. Explain the actual status in user language and surface the next best action without making the user guess.
-- Wallet/trading flow: `Connect Wallet`, `Estimate`, liquidity setup, and chart sync need to become a single guided flow. New users should not need to understand estimates, pools, indexer swaps, or Dexscreener sync internals.
-- Visual polish: make the app feel richer and more entertaining without adding complex new systems. Add stronger image treatment, allocation graphics, clearer progress states, and a more confident launchpad layout.
+- Rate limits: every public and authenticated route now has a deliberate policy, including the previously uncovered magic-link `auth/verify` (brute-force cap), `auth/logout`, and every expensive read (`coins` feed, coin detail, `stats`, `proof`, `me`, `me/drafts`, `health`).
+- Upload-to-draft reveal: the post-upload state is now one coherent panel — a "your snap → coin remix" before/after, editable name/ticker (with a `$` affordance), meme angle, story, tokenomics, and a single confident launch action.
+- Tokenomics editor: allocation is constrained so the split can never exceed 100%, shows the remaining amount, renders a graphical stacked allocation bar with per-row color legend, and supports add/remove split plus an auto-balance affordance.
+- Launch completion: launching now reveals an in-place success card (celebration, proof link, chart status, trading next-step, and "snap another") instead of a disconnected toast.
+- Chart/liquidity language: `chart unlock pending` and other internals are gone from primary UI; the feed and coin page speak in "Chart live / New launch / Chart soon", and the Dexscreener sync is now a friendly "Your chart is almost ready" panel.
+- Wallet/trading flow: `CreatorTradingPanel` is a guided connect → choose liquidity → confirm-in-wallet flow with plain-language field labels; costs, gas, and step internals are tucked under a "What this costs & the steps" details disclosure. Raw contract/tx/pool proof on the coin page now lives under a collapsed "Proof & contract details".
+
+## Still Open / Future Polish
+
+- The launch timeline still surfaces `Uniswap pool` / `Indexer swap` labels; acceptable as proof context, but could be softened further or fully folded into a details block.
+- End-to-end wallet launch and liquidity seeding still need a funded-wallet run to verify on-chain (headless verification covers UI and validation only).
+- Nice-to-haves: loading skeletons, subtle motion on the reveal/success states, and a richer signed-out first screen.
 
 ## UX Rules
 

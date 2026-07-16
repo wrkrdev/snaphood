@@ -1,7 +1,15 @@
 import { NextResponse } from "next/server";
 import { getLaunchpadStats } from "@/lib/coins";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 export async function GET(request: Request) {
+  const limited = await applyRateLimit(request, {
+    name: "coins:stats:ip",
+    limit: 120,
+    windowSeconds: 60
+  });
+  if (limited) return limited;
+
   try {
     const { searchParams } = new URL(request.url);
     const chainId = parseOptionalInteger(searchParams.get("chainId"));

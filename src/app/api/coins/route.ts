@@ -1,11 +1,19 @@
 import { NextResponse } from "next/server";
 import { listLaunchedCoins, type CoinFeedCursor } from "@/lib/coins";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 const publicFeedCacheHeaders = {
   "Cache-Control": "public, max-age=15, stale-while-revalidate=45"
 };
 
 export async function GET(request: Request) {
+  const limited = await applyRateLimit(request, {
+    name: "coins:feed:ip",
+    limit: 180,
+    windowSeconds: 60
+  });
+  if (limited) return limited;
+
   try {
     const { searchParams } = new URL(request.url);
     const limit = parseBoundedInteger(searchParams.get("limit"), 30, 1, 100);

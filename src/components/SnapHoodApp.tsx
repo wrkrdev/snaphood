@@ -84,6 +84,10 @@ const defaultTokenomics: Tokenomics = {
   notes: ["Fixed supply.", "No transfer tax.", "No implied investment value."]
 };
 
+// Distinct, on-brand colors for the allocation bar segments (last slot = still unallocated).
+const allocationColors = ["#00c805", "#0a9d5f", "#0ea5b7", "#3b7df6", "#f59e0b", "#ef476f"];
+const unallocatedColor = "#dbe4da";
+
 type DexPair = {
   liquidity?: { usd?: number };
   volume?: { h24?: number };
@@ -130,6 +134,15 @@ function compactUsd(value?: number) {
     notation: value >= 1000 ? "compact" : "standard",
     maximumFractionDigits: value >= 1000 ? 1 : 2
   }).format(value);
+}
+
+function formatCount(value: string) {
+  const parsed = Number(String(value).replace(/,/g, ""));
+  if (!Number.isFinite(parsed)) return value;
+  return new Intl.NumberFormat("en-US", {
+    notation: parsed >= 1_000_000 ? "compact" : "standard",
+    maximumFractionDigits: 1
+  }).format(parsed);
 }
 
 function activityScore(coin: LaunchedCoin) {
@@ -196,6 +209,9 @@ export default function SnapHoodApp() {
     } else if (authStatus === "missing") {
       setError("Sign-in link is missing a token.");
       window.history.replaceState({}, "", window.location.pathname);
+    } else if (authStatus === "throttled") {
+      setError("Too many sign-in attempts. Wait a minute, then open your most recent link.");
+      window.history.replaceState({}, "", window.location.pathname);
     }
     void fetch("/api/health")
       .then((response) => response.json())
@@ -246,6 +262,7 @@ export default function SnapHoodApp() {
     () => form.tokenomics.allocation.reduce((sum, row) => sum + Number(row.percent || 0), 0),
     [form.tokenomics.allocation]
   );
+  const allocationRemaining = Math.max(0, 100 - allocationTotal);
   const acknowledgementsAccepted = useMemo(
     () => launchAcknowledgementItems.every((item) => acknowledgements[item.key]),
     [acknowledgements]
@@ -604,16 +621,85 @@ export default function SnapHoodApp() {
 
   function updateAllocation(index: number, key: "label" | "percent", value: string) {
     setForm((current) => {
-      const allocation = current.tokenomics.allocation.map((row, rowIndex) =>
-        rowIndex === index
-          ? {
-              ...row,
-              [key]: key === "percent" ? Number(value) : value
-            }
-          : row
+      const allocation = current.tokenomics.allocation.map((row, rowIndex) => {
+        if (rowIndex !== index) return row;
+        if (key === "label") return { ...row, label: value };
+        // Cap each edit at the percentage still available so the mix can never exceed 100%.
+        const othersTotal = current.tokenomics.allocation.reduce(
+          (sum, other, otherIndex) => (otherIndex === index ? sum : sum + Number(other.percent || 0)),
+          0
+        );
+        const requested = Math.round(Number(value) || 0);
+        const capped = Math.max(0, Math.min(requested, 100 - othersTotal));
+        return { ...row, percent: capped };
+      });
+      return { ...current, tokenomics: { ...current.tokenomics, allocation } };
+    });
+  }
+
+  function addAllocationRow() {
+    setForm((current) => {
+      if (current.tokenomics.allocation.length >= 6) return current;
+      return {
+        ...current,
+        tokenomics: {
+          ...current.tokenomics,
+          allocation: [...current.tokenomics.allocation, { label: "New split", percent: 0 }]
+        }
+      };
+    });
+  }
+
+  function removeAllocationRow(index: number) {
+    setForm((current) => {
+      if (current.tokenomics.allocation.length <= 1) return current;
+      return {
+        ...current,
+        tokenomics: {
+          ...current.tokenomics,
+          allocation: current.tokenomics.allocation.filter((_, rowIndex) => rowIndex !== index)
+        }
+      };
+    });
+  }
+
+  function autoBalanceAllocation() {
+    setForm((current) => {
+      const rows = current.tokenomics.allocation;
+      if (rows.length === 0) return current;
+      const total = rows.reduce((sum, row) => sum + Number(row.percent || 0), 0);
+      const remaining = 100 - total;
+      if (remaining <= 0) return current;
+      // Give the leftover percentage to the largest bucket so the split always totals exactly 100%.
+      let targetIndex = 0;
+      rows.forEach((row, index) => {
+        if (Number(row.percent || 0) >= Number(rows[targetIndex].percent || 0)) targetIndex = index;
+      });
+      const allocation = rows.map((row, index) =>
+        index === targetIndex ? { ...row, percent: Number(row.percent || 0) + remaining } : row
       );
       return { ...current, tokenomics: { ...current.tokenomics, allocation } };
     });
+  }
+
+  function setAllAcknowledgements(value: boolean) {
+    setAcknowledgements({
+      noInvestmentValue: value,
+      noAffiliation: value,
+      contentRights: value,
+      jurisdictionAllowed: value,
+      userWalletPaysGas: value,
+      liveAdminControlled: value
+    });
+  }
+
+  function resetCreator() {
+    setDraft(null);
+    setReceipt(null);
+    setSelectedImage(null);
+    setError("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    void refreshDrafts();
   }
 
   function resumeDraft(nextDraft: TokenDraft) {
@@ -761,7 +847,7 @@ export default function SnapHoodApp() {
                         <strong>${coin.ticker}</strong>
                         <span>{coin.name}</span>
                       </div>
-                      <em>{isTradable(coin) ? "trade" : "proof"}</em>
+                      <em>{isTradable(coin) ? "live" : "new"}</em>
                     </a>
                   ))}
                 </div>
@@ -814,8 +900,9 @@ export default function SnapHoodApp() {
                                   <span>Vol {compactUsd(pair?.volume?.h24)}</span>
                                 </div>
                                 <div className="coin-meta">
-                                  <span>{isTradable(coin) ? "chart live" : "launched"}</span>
-                                  {!isTradable(coin) ? <span>chart soon</span> : null}
+                                  <span className={isTradable(coin) ? "meta-live" : "meta-soft"}>
+                                    {isTradable(coin) ? "Chart live" : "New launch"}
+                                  </span>
                                   <span>{new Date(coin.updatedAt).toLocaleDateString()}</span>
                                 </div>
                               </div>
@@ -839,9 +926,11 @@ export default function SnapHoodApp() {
                             <a className="btn primary small" href={coin.dexscreenerUrl} target="_blank" rel="noreferrer">
                               Chart
                             </a>
-                          ) : !coin.poolAddress ? (
-                            <span className="trade-note">chart unlock pending</span>
-                          ) : null}
+                          ) : (
+                            <a className="btn ghost small chart-soon" href={`/coin/${coin.contractAddress}`}>
+                              Chart soon
+                            </a>
+                          )}
                         </div>
                       </article>
                     ))}
@@ -903,46 +992,361 @@ export default function SnapHoodApp() {
                       </div>
                     ) : null}
                   </div>
+                ) : receipt ? (
+                  <div className="launch-success" aria-live="polite">
+                    <div className="success-crown">
+                      {draft?.profileImageUrl ? (
+                        <span className="success-coin">
+                          <img src={draft.profileImageUrl} alt="" />
+                        </span>
+                      ) : (
+                        <span className="success-coin">
+                          <Rocket size={26} />
+                        </span>
+                      )}
+                      <span className="success-spark">
+                        <Sparkles size={14} />
+                        launched
+                      </span>
+                    </div>
+                    <div className="success-headline">
+                      <h3>${receipt.ticker} is live</h3>
+                      <p>{receipt.name} is now a real coin on Robinhood Chain. Here&apos;s what&apos;s next.</p>
+                    </div>
+                    <div className="success-status">
+                      <div className="status-line done">
+                        <span className="status-ic">
+                          <Rocket size={15} />
+                        </span>
+                        <div>
+                          <strong>Coin created</strong>
+                          <span>Minted straight to your wallet.</span>
+                        </div>
+                        <a className="status-link" href={receipt.explorerUrl} target="_blank" rel="noreferrer">
+                          Proof
+                          <ExternalLink size={13} />
+                        </a>
+                      </div>
+                      <div className="status-line pending">
+                        <span className="status-ic">
+                          <Activity size={15} />
+                        </span>
+                        <div>
+                          <strong>Chart not live yet</strong>
+                          <span>Add a little liquidity so people can trade it — then a live price chart appears.</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="next-actions">
+                      <a className="btn primary" href={`/coin/${receipt.contractAddress}`}>
+                        <Flame size={16} />
+                        Make it tradable
+                      </a>
+                      <a className="btn ghost" href={`/coin/${receipt.contractAddress}`}>
+                        Open coin page
+                      </a>
+                      <button className="btn ghost" onClick={resetCreator} type="button">
+                        <Camera size={16} />
+                        Snap another
+                      </button>
+                    </div>
+                  </div>
+                ) : draft ? (
+                  <div className="reveal stack">
+                    <input
+                      ref={fileInputRef}
+                      className="hidden-file"
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      disabled={busy === "generate"}
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        if (file) void generate(file);
+                      }}
+                    />
+
+                    <div className="reveal-head">
+                      <span className="reveal-badge">
+                        <Sparkles size={13} />
+                        your coin is ready
+                      </span>
+                      <button
+                        className="text-action"
+                        onClick={() => fileInputRef.current?.click()}
+                        type="button"
+                        disabled={busy === "generate"}
+                      >
+                        <Camera size={13} />
+                        {busy === "generate" ? "Remixing" : "Different snap"}
+                      </button>
+                    </div>
+
+                    <div className="snap-baton" aria-label="Your snap remixed into coin art">
+                      <figure>
+                        <img src={selectedImage ?? draft.originalImageUrl} alt="Your snap" />
+                        <figcaption>your snap</figcaption>
+                      </figure>
+                      <span className="baton-arrow">
+                        <WandSparkles size={18} />
+                      </span>
+                      <figure>
+                        <img src={draft.profileImageUrl} alt="Coin remix" />
+                        <figcaption>coin remix</figcaption>
+                      </figure>
+                    </div>
+
+                    {draft.promptSummary ? (
+                      <p className="meme-angle-line">
+                        <Flame size={14} />
+                        {draft.promptSummary}
+                      </p>
+                    ) : null}
+
+                    <div className="form-grid">
+                      <label className="label">
+                        Name
+                        <input
+                          className="field"
+                          value={form.name}
+                          onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+                        />
+                      </label>
+                      <label className="label">
+                        Ticker
+                        <div className="ticker-field">
+                          <span>$</span>
+                          <input
+                            className="field"
+                            value={form.ticker}
+                            maxLength={6}
+                            onChange={(event) =>
+                              setForm((current) => ({
+                                ...current,
+                                ticker: event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "")
+                              }))
+                            }
+                          />
+                        </div>
+                      </label>
+                    </div>
+
+                    <label className="label">
+                      Story
+                      <textarea
+                        className="textarea"
+                        value={form.description}
+                        onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
+                      />
+                    </label>
+
+                    <div className="alloc-editor" aria-label="Token split">
+                      <div className="alloc-top">
+                        <div>
+                          <span className="alloc-title">Token split</span>
+                          <span className="alloc-sub">{formatCount(form.tokenomics.supply)} coins · divide them below</span>
+                        </div>
+                        <span className={allocationRemaining === 0 ? "alloc-remaining done" : "alloc-remaining"}>
+                          {allocationRemaining === 0 ? "100% allocated" : `${allocationRemaining}% left`}
+                        </span>
+                      </div>
+
+                      <div className="alloc-bar" role="img" aria-label={`${allocationTotal}% of the supply allocated`}>
+                        {form.tokenomics.allocation.map((row, index) =>
+                          Number(row.percent) > 0 ? (
+                            <span
+                              key={`seg-${index}`}
+                              className="alloc-seg"
+                              style={{ width: `${row.percent}%`, background: allocationColors[index % allocationColors.length] }}
+                              title={`${row.label} · ${row.percent}%`}
+                            />
+                          ) : null
+                        )}
+                        {allocationRemaining > 0 ? (
+                          <span className="alloc-seg unallocated" style={{ width: `${allocationRemaining}%`, background: unallocatedColor }} />
+                        ) : null}
+                      </div>
+
+                      <div className="alloc-rows">
+                        {form.tokenomics.allocation.map((row, index) => (
+                          <div className="alloc-row" key={`row-${index}`}>
+                            <span className="alloc-dot" style={{ background: allocationColors[index % allocationColors.length] }} />
+                            <input
+                              className="field alloc-label"
+                              value={row.label}
+                              onChange={(event) => updateAllocation(index, "label", event.target.value)}
+                              aria-label={`Split label ${index + 1}`}
+                            />
+                            <div className="alloc-percent">
+                              <input
+                                className="field"
+                                type="number"
+                                min={0}
+                                max={100}
+                                value={row.percent}
+                                onChange={(event) => updateAllocation(index, "percent", event.target.value)}
+                                aria-label={`Split percent ${index + 1}`}
+                              />
+                              <span>%</span>
+                            </div>
+                            {form.tokenomics.allocation.length > 1 ? (
+                              <button
+                                className="alloc-remove"
+                                onClick={() => removeAllocationRow(index)}
+                                type="button"
+                                aria-label={`Remove ${row.label || "split"}`}
+                              >
+                                ×
+                              </button>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="alloc-actions">
+                        {form.tokenomics.allocation.length < 6 ? (
+                          <button className="text-action" onClick={addAllocationRow} type="button">
+                            + Add split
+                          </button>
+                        ) : null}
+                        {allocationRemaining > 0 ? (
+                          <button className="text-action" onClick={autoBalanceAllocation} type="button">
+                            Fill the last {allocationRemaining}%
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div className="spice-chips" aria-label="Coin vibe">
+                      {spiceChips.map((chip) => (
+                        <span key={chip}>{chip}</span>
+                      ))}
+                    </div>
+
+                    <div className="ack-master">
+                      <label className="check-row master">
+                        <input
+                          type="checkbox"
+                          checked={acknowledgementsAccepted}
+                          onChange={(event) => setAllAcknowledgements(event.target.checked)}
+                        />
+                        <span>I made this, it&apos;s a fun meme coin (not an investment), and I&apos;ll launch it from my own wallet.</span>
+                      </label>
+                      <details className="ack-details">
+                        <summary>See all launch terms</summary>
+                        <div className="ack-list">
+                          {launchAcknowledgementItems.map((item) => (
+                            <label className="check-row" key={item.key}>
+                              <input
+                                type="checkbox"
+                                checked={acknowledgements[item.key]}
+                                onChange={(event) =>
+                                  setAcknowledgements((current) => ({
+                                    ...current,
+                                    [item.key]: event.target.checked
+                                  }))
+                                }
+                              />
+                              <span>{item.label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </details>
+                    </div>
+
+                    {requiresWalletLaunch ? (
+                      <div className={walletAddress ? "wallet-chip ready" : "wallet-chip"}>
+                        <Wallet size={14} />
+                        {walletAddress
+                          ? `Wallet ${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)} ready`
+                          : "You'll confirm the launch in your own wallet."}
+                      </div>
+                    ) : null}
+
+                    <button
+                      className="btn primary launch-cta"
+                      disabled={busy === "launch" || busy === "wallet" || allocationTotal !== 100 || !acknowledgementsAccepted}
+                      onClick={requiresWalletLaunch && !walletAddress ? connectWallet : launch}
+                      type="button"
+                    >
+                      {requiresWalletLaunch && !walletAddress ? <Wallet size={17} /> : <Rocket size={17} />}
+                      {requiresWalletLaunch && !walletAddress
+                        ? busy === "wallet"
+                          ? "Connecting"
+                          : "Connect wallet"
+                        : busy === "launch"
+                          ? "Launching"
+                          : requiresWalletLaunch
+                            ? "Launch from wallet"
+                            : "Launch demo"}
+                    </button>
+
+                    {allocationTotal !== 100 ? (
+                      <p className="cta-hint">Balance the token split to 100% to launch.</p>
+                    ) : !acknowledgementsAccepted ? (
+                      <p className="cta-hint">Agree to the launch terms to continue.</p>
+                    ) : null}
+
+                    <button className="text-action center" onClick={resetCreator} type="button">
+                      Back to snaps
+                    </button>
+                  </div>
                 ) : (
                   <>
-                    <label className="dropzone compact-drop">
-                      {selectedImage || draft?.originalImageUrl ? (
-                        <img
-                          className="preview-image"
-                          src={selectedImage ?? draft?.originalImageUrl}
-                          alt="Uploaded token inspiration"
-                        />
+                    <input
+                      ref={fileInputRef}
+                      className="hidden-file"
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      disabled={busy === "generate"}
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        if (file) void generate(file);
+                      }}
+                    />
+
+                    <button
+                      type="button"
+                      className={busy === "generate" ? "dropzone compact-drop busy" : "dropzone compact-drop"}
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={busy === "generate"}
+                    >
+                      {busy === "generate" && selectedImage ? (
+                        <>
+                          <img className="preview-image" src={selectedImage} alt="Uploaded snap" />
+                          <span className="drop-loading">
+                            <WandSparkles size={16} />
+                            Remixing your snap…
+                          </span>
+                        </>
                       ) : (
                         <span className="dropzone-content">
                           <span className="drop-icon">
                             <Camera size={22} />
                           </span>
-                          <strong>snap to coin</strong>
-                          <span>camera or upload a photo</span>
+                          <strong>Snap to coin</strong>
+                          <span>Take a photo or upload one — we turn it into coin art and a ready-to-edit token.</span>
                         </span>
                       )}
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        disabled={busy === "generate"}
-                        onChange={(event) => {
-                          const file = event.target.files?.[0];
-                          if (file) void generate(file);
-                        }}
-                      />
-                    </label>
-
-                    <button
-                      className="btn ghost"
-                      disabled={busy === "generate"}
-                      onClick={() => fileInputRef.current?.click()}
-                      type="button"
-                    >
-                      <Upload size={16} />
-                      {busy === "generate" ? "Remixing" : "Upload snap"}
                     </button>
+
+                    <div className="snap-hint-row">
+                      <button
+                        className="btn ghost"
+                        disabled={busy === "generate"}
+                        onClick={() => fileInputRef.current?.click()}
+                        type="button"
+                      >
+                        <Upload size={16} />
+                        {busy === "generate" ? "Remixing" : "Upload a photo"}
+                      </button>
+                      <div className="snap-steps" aria-hidden="true">
+                        <span><b>1</b> Snap</span>
+                        <span><b>2</b> Review</span>
+                        <span><b>3</b> Launch</span>
+                      </div>
+                    </div>
 
                     {userDrafts.length > 0 ? (
                       <div className="recent-drafts" aria-label="Recent token drafts">
@@ -958,7 +1362,7 @@ export default function SnapHoodApp() {
                           </button>
                         </div>
                         {userDrafts.map((item) => (
-                          <div className={draft?.id === item.id ? "draft-row active" : "draft-row"} key={item.id}>
+                          <div className="draft-row" key={item.id}>
                             <img src={item.profileImageUrl} alt="" />
                             <button
                               className="draft-row-main"
@@ -995,146 +1399,6 @@ export default function SnapHoodApp() {
                 )}
 
                 {error ? <div className="toast error">{error}</div> : null}
-
-                {draft ? (
-                  <div className="stack">
-                    <div className="token-preview">
-                      <div className="coin remix-coin">
-                        <img src={draft.profileImageUrl} alt="" />
-                      </div>
-                      <div>
-                        <span className="token-preview-label">snap remix</span>
-                        <h3>{form.name || "Untitled Token"}</h3>
-                        <p>${form.ticker || "SNAP"} · {form.tokenomics.supply}</p>
-                        {draft.promptSummary ? <p className="meme-angle">{draft.promptSummary}</p> : null}
-                        <div className="spice-chips" aria-label="Coin vibe">
-                          {spiceChips.map((chip) => (
-                            <span key={chip}>{chip}</span>
-                          ))}
-                        </div>
-                  </div>
-                  <div className="disclaimer">
-                    {requiresWalletLaunch
-                      ? "Your wallet launches the coin. SnapHood saves the public proof after the chain confirms it."
-                      : "Demo launches create a preview receipt without sending a transaction."}
-                  </div>
-                </div>
-
-                    <div className="form-grid">
-                      <label className="label">
-                        Name
-                        <input
-                          className="field"
-                          value={form.name}
-                          onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-                        />
-                      </label>
-                      <label className="label">
-                        Ticker
-                        <input
-                          className="field"
-                          value={form.ticker}
-                          maxLength={6}
-                          onChange={(event) =>
-                            setForm((current) => ({
-                              ...current,
-                              ticker: event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "")
-                            }))
-                          }
-                        />
-                      </label>
-                    </div>
-
-                    <label className="label">
-                      Description
-                      <textarea
-                        className="textarea"
-                        value={form.description}
-                        onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
-                      />
-                    </label>
-
-                    <div className="tokenomics mini-tokenomics" aria-label="Tokenomics allocation">
-                      {form.tokenomics.allocation.map((row, index) => (
-                        <div className="tokenomics-row" key={`${row.label}-${index}`}>
-                          <input
-                            className="field"
-                            value={row.label}
-                            onChange={(event) => updateAllocation(index, "label", event.target.value)}
-                            aria-label={`Allocation label ${index + 1}`}
-                          />
-                          <input
-                            className="field"
-                            type="number"
-                            min={0}
-                            max={100}
-                            value={row.percent}
-                            onChange={(event) => updateAllocation(index, "percent", event.target.value)}
-                            aria-label={`Allocation percent ${index + 1}`}
-                          />
-                        </div>
-                      ))}
-                      <div className={allocationTotal === 100 ? "toast" : "toast error"}>{allocationTotal}% allocated</div>
-                    </div>
-
-                    <div className="ack-panel" aria-label="Launch acknowledgements">
-                      <div className="ack-head">
-                        <ShieldCheck size={16} />
-                        <strong>Before launch</strong>
-                      </div>
-                      {launchAcknowledgementItems.map((item) => (
-                        <label className="check-row" key={item.key}>
-                          <input
-                            type="checkbox"
-                            checked={acknowledgements[item.key]}
-                            onChange={(event) =>
-                              setAcknowledgements((current) => ({
-                                ...current,
-                                [item.key]: event.target.checked
-                              }))
-                            }
-                          />
-                          <span>{item.label}</span>
-                        </label>
-                      ))}
-                    </div>
-
-                    {requiresWalletLaunch ? (
-                      <div className="toast">
-                        {walletAddress
-                          ? `Wallet connected${walletChainId ? ` on chain ${walletChainId}` : ""}.`
-                          : "Connect your wallet when you are ready to launch."}
-                      </div>
-                    ) : null}
-
-                    <button
-                      className="btn primary"
-                      disabled={busy === "launch" || busy === "wallet" || allocationTotal !== 100 || !acknowledgementsAccepted}
-                      onClick={requiresWalletLaunch && !walletAddress ? connectWallet : launch}
-                      type="button"
-                    >
-                      {requiresWalletLaunch && !walletAddress ? <Wallet size={17} /> : <Rocket size={17} />}
-                      {requiresWalletLaunch && !walletAddress
-                        ? busy === "wallet"
-                          ? "Connecting"
-                          : "Connect wallet"
-                        : busy === "launch"
-                          ? "Launching"
-                          : requiresWalletLaunch
-                            ? "Launch from wallet"
-                            : "Launch demo"}
-                    </button>
-                  </div>
-                ) : null}
-
-                {receipt ? (
-                  <div className="toast">
-                    <strong>${receipt.ticker} launched</strong>
-                    <a href={receipt.explorerUrl} target="_blank" rel="noreferrer">
-                      Open explorer <ExternalLink size={13} />
-                    </a>
-                  </div>
-                ) : null}
               </div>
             </section>
 
