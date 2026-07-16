@@ -99,6 +99,17 @@ Sync Dexscreener metadata into Postgres:
 npm run dex:sync
 ```
 
+Admins can also operate the same flow from the app. Sign in with an email listed in
+`SNAPHOOD_ADMIN_EMAILS`, open `/coin/<contract>`, then use the Trading Operations
+panel. Every live-spending action has a dry-run estimate button and requires an
+explicit browser confirmation before `execute: true` is sent.
+
+Admin API routes:
+
+- `POST /api/admin/coins/<contract>/make-tradable` — estimate or seed Uniswap v3 liquidity.
+- `POST /api/admin/coins/<contract>/index-swap` — estimate or run a tiny WETH-to-token indexer swap.
+- `POST /api/admin/coins/<contract>/sync-dex` — fetch and cache the Dexscreener pair payload.
+
 Public pages:
 
 - `/` — launchpad feed and creation workflow

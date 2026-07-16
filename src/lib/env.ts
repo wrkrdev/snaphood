@@ -29,7 +29,15 @@ export const env = {
   defaultTokenDecimals: Number(process.env.DEFAULT_TOKEN_DECIMALS ?? "18"),
   tradingTokenAddress: process.env.TRADING_TOKEN_ADDRESS ?? "",
   tradingPoolAddress: process.env.TRADING_POOL_ADDRESS ?? "",
-  tradingPositionId: process.env.TRADING_POSITION_ID ?? ""
+  tradingPositionId: process.env.TRADING_POSITION_ID ?? "",
+  robinhoodWethAddress: process.env.ROBINHOOD_WETH_ADDRESS ?? "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+  uniswapV3Factory: process.env.UNISWAP_V3_FACTORY ?? "0x1f7d7550b1b028f7571e69a784071f0205fd2efa",
+  uniswapV3PositionManager: process.env.UNISWAP_V3_POSITION_MANAGER ?? "0x73991a25c818bf1f1128deaab1492d45638de0d3",
+  uniswapV3SwapRouter: process.env.UNISWAP_V3_SWAP_ROUTER_02 ?? "0xcaf681a66d020601342297493863e78c959e5cb2",
+  uniswapV3Fee: Number(process.env.UNISWAP_V3_FEE ?? "10000"),
+  liquidityTokenAmount: process.env.LIQUIDITY_TOKEN_AMOUNT ?? "1000000",
+  liquidityEthAmount: process.env.LIQUIDITY_ETH_AMOUNT ?? "0.0001",
+  indexSwapEthAmount: process.env.SWAP_ETH_AMOUNT ?? "0.00001"
 };
 
 export function isAdminEmail(email: string) {

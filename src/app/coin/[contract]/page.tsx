@@ -1,6 +1,9 @@
 import { notFound } from "next/navigation";
 import { Activity, ExternalLink, Flame, ShieldCheck, WalletCards } from "lucide-react";
+import { getCurrentUser } from "@/lib/auth";
 import { getLaunchedCoin } from "@/lib/coins";
+import { isAdminEmail } from "@/lib/env";
+import { AdminTradingPanel } from "@/components/AdminTradingPanel";
 
 export default async function CoinPage({ params }: { params: Promise<{ contract: string }> }) {
   const { contract } = await params;
@@ -9,6 +12,9 @@ export default async function CoinPage({ params }: { params: Promise<{ contract:
   if (!coin) {
     notFound();
   }
+
+  const user = await getCurrentUser();
+  const isAdmin = user ? isAdminEmail(user.email) : false;
 
   const pair = coin.dexscreenerPair as
     | {
@@ -102,6 +108,14 @@ export default async function CoinPage({ params }: { params: Promise<{ contract:
           ) : null}
         </dl>
       </section>
+
+      {isAdmin ? (
+        <AdminTradingPanel
+          contractAddress={coin.contractAddress}
+          isTradable={Boolean(coin.poolAddress)}
+          hasIndexerSwap={Boolean(coin.swapTxHash)}
+        />
+      ) : null}
     </main>
   );
 }

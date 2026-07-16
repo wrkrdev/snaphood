@@ -1104,6 +1104,68 @@ h1 {
   overflow-wrap: anywhere;
 }
 
+.admin-trading-panel {
+  display: grid;
+  gap: 14px;
+  border: 1px solid rgba(5, 5, 5, 0.1);
+  border-radius: 8px;
+  background: #fff;
+  padding: 18px;
+}
+
+.admin-trading-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.admin-trading-head h2 {
+  margin: 8px 0 0;
+}
+
+.admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-result {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(5, 5, 5, 0.08);
+  border-radius: 8px;
+  background: #fbfdfb;
+  padding: 12px;
+}
+
+.admin-result div,
+.admin-result li {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.admin-result span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 740;
+}
+
+.admin-result strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+
+.admin-result ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
 .stack-page {
   display: grid;
   gap: 18px;

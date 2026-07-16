@@ -62,6 +62,27 @@ const defaultTokenomics: Tokenomics = {
   notes: ["Fixed supply.", "No transfer tax.", "No implied investment value."]
 };
 
+type DexPair = {
+  liquidity?: { usd?: number };
+  volume?: { h24?: number };
+  marketCap?: number;
+  fdv?: number;
+};
+
+function getPair(coin: LaunchedCoin) {
+  return coin.dexscreenerPair as DexPair | undefined;
+}
+
+function compactUsd(value?: number) {
+  if (!value) return "pending";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    notation: value >= 1000 ? "compact" : "standard",
+    maximumFractionDigits: value >= 1000 ? 1 : 2
+  }).format(value);
+}
+
 export default function SnapHoodApp() {
   const [health, setHealth] = useState<Health | null>(null);
   const [user, setUser] = useState<User | null>(null);
@@ -372,19 +393,30 @@ export default function SnapHoodApp() {
                 <div className="coin-feed">
                   {visibleCoins.map((coin) => (
                     <article className="feed-card" key={coin.id}>
-                      <img className="feed-card-image" src={coin.profileImageUrl} alt="" />
-                      <div className="feed-card-main">
-                        <div className="feed-card-title">
-                          <h3>{coin.name}</h3>
-                          <span>${coin.ticker}</span>
-                        </div>
-                        <p>{coin.description}</p>
-                        <div className="coin-meta">
-                          <span>MC demo</span>
-                          <span>{coin.dexscreenerUrl ? "tradable" : "deployed"}</span>
-                          <span>{new Date(coin.updatedAt).toLocaleDateString()}</span>
-                        </div>
-                      </div>
+                      {(() => {
+                        const pair = getPair(coin);
+                        return (
+                          <>
+                            <img className="feed-card-image" src={coin.profileImageUrl} alt="" />
+                            <div className="feed-card-main">
+                              <div className="feed-card-title">
+                                <h3>{coin.name}</h3>
+                                <span>${coin.ticker}</span>
+                              </div>
+                              <p>{coin.description}</p>
+                              <div className="coin-meta">
+                                <span>MC {compactUsd(pair?.marketCap ?? pair?.fdv)}</span>
+                                <span>Liq {compactUsd(pair?.liquidity?.usd)}</span>
+                                <span>Vol {compactUsd(pair?.volume?.h24)}</span>
+                              </div>
+                              <div className="coin-meta">
+                                <span>{coin.dexscreenerUrl ? "tradable" : "deployed"}</span>
+                                <span>{new Date(coin.updatedAt).toLocaleDateString()}</span>
+                              </div>
+                            </div>
+                          </>
+                        );
+                      })()}
                       <div className="feed-card-actions">
                         <a className="btn ghost small" href={`/coin/${coin.contractAddress}`}>
                           Details
