@@ -25,7 +25,12 @@ export default async function StackPage() {
     { icon: Network, label: "Robinhood Chain", value: readiness.chain ? `${readiness.chainId}` : "missing", detail: `${readiness.network} RPC` },
     { icon: WalletCards, label: "Deployer", value: readiness.deployer ? "configured" : "missing", detail: readiness.adminConfigured ? "admin gated" : "admin missing" },
     { icon: ShieldCheck, label: "Launch mode", value: readiness.launchMode, detail: "demo/testnet/mainnet controlled by env" },
-    { icon: Mail, label: "Email", value: "planned", detail: "magic-link auth can use wrkr email" }
+    {
+      icon: Mail,
+      label: "Auth email",
+      value: readiness.demoAuthEnabled ? "demo" : readiness.authEmailMode,
+      detail: readiness.demoAuthEnabled ? "instant local sessions" : "magic-link sign in"
+    }
   ];
 
   return (

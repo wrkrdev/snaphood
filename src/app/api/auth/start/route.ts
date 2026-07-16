@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createSession } from "@/lib/auth";
+import { createMagicLink, createSession, sendMagicLink } from "@/lib/auth";
+import { env } from "@/lib/env";
 import { applyRateLimit } from "@/lib/rate-limit";
 
 const schema = z.object({
@@ -21,8 +22,20 @@ export async function POST(request: Request) {
   }
 
   try {
+    if (!env.demoAuthEnabled) {
+      const magicLink = await createMagicLink(body.data.email);
+      const delivery = await sendMagicLink(magicLink);
+
+      return NextResponse.json({
+        sent: true,
+        email: magicLink.email,
+        mode: delivery.mode,
+        magicLink: delivery.mode === "dry-run" && process.env.NODE_ENV !== "production" ? magicLink.url : undefined
+      });
+    }
+
     const user = await createSession(body.data.email);
-    return NextResponse.json({ user });
+    return NextResponse.json({ user, mode: "demo" });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Could not start session." },

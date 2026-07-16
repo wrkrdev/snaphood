@@ -23,7 +23,7 @@ It is an original launchpad product with a Pump.fun-inspired dense feed and crea
 | Durable data | `wrkr db` | users, sessions, token drafts, launches, trading metadata, Dexscreener cache |
 | Cache/rate limits | `wrkr cache` | Redis-backed throttles for auth, generation, launch, and admin trading |
 | Uploads/assets | `wrkr storage` | optional object storage for images and generated assets |
-| Email | `wrkr email` | future magic-link auth |
+| Email | `wrkr email` | production magic-link auth |
 | Public URL | `wrkr expose` | publish local Next port |
 
 ## Quickstart
@@ -64,6 +64,26 @@ Before enabling live deployment:
 - wire the reviewed bytecode into `src/lib/launch.ts`.
 
 Robinhood Chain docs list mainnet chain ID `4663`, testnet chain ID `46630`, ETH gas, and standard EVM contract deployment.
+
+## Auth Modes
+
+Local demos use instant email sessions by default:
+
+```bash
+SNAPHOOD_DEMO_AUTH_ENABLED="true"
+```
+
+For a public deployment, disable demo auth and send one-time magic links:
+
+```bash
+SNAPHOOD_DEMO_AUTH_ENABLED="false"
+SNAPHOOD_AUTH_EMAIL_MODE="wrkr"
+SNAPHOOD_AUTH_EMAIL_FROM=""
+SNAPHOOD_AUTH_MAGIC_LINK_TTL_MINUTES="15"
+```
+
+`SNAPHOOD_AUTH_EMAIL_MODE=dry-run` keeps the same Postgres-backed magic-link flow but returns the link in the API response
+for local verification. `wrkr` mode sends through `wrkr email send`.
 
 ## Trading / Liquidity
 

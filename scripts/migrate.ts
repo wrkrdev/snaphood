@@ -31,6 +31,18 @@ async function main() {
     create index if not exists snaphood_sessions_user_idx on snaphood_sessions(user_id);
     create index if not exists snaphood_sessions_expires_idx on snaphood_sessions(expires_at);
 
+    create table if not exists snaphood_auth_challenges (
+      id text primary key,
+      email text not null,
+      token_hash text not null unique,
+      expires_at timestamptz not null,
+      used_at timestamptz,
+      created_at timestamptz not null default now()
+    );
+
+    create index if not exists snaphood_auth_challenges_email_idx on snaphood_auth_challenges(email, created_at desc);
+    create index if not exists snaphood_auth_challenges_expires_idx on snaphood_auth_challenges(expires_at);
+
     create table if not exists snaphood_token_drafts (
       id text primary key,
       user_id text not null references snaphood_users(id) on delete cascade,

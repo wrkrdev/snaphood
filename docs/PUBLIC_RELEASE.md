@@ -4,7 +4,7 @@ Before making SnapHood public:
 
 - Confirm `.env.local` and generated upload folders are not committed.
 - Rotate any key that was ever pasted into a shell, log, screenshot, or chat.
-- Replace demo auth with magic-link email or OAuth.
+- Disable demo auth and verify Wrkr magic-link email delivery.
 - Verify Redis-backed rate limits are active for auth, generation, launch, and admin trading endpoints.
 - Keep default `TOKEN_LAUNCH_MODE=demo` in `.env.example`.
 - Verify launch acknowledgements cover jurisdiction, no-investment-value, content rights, and no-affiliation guardrails.

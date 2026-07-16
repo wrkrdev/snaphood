@@ -1,9 +1,18 @@
-import { createHmac, timingSafeEqual } from "crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "crypto";
+import { execFile } from "child_process";
+import { promisify } from "util";
 import { cookies } from "next/headers";
 import { query } from "@/lib/db";
 import { env } from "@/lib/env";
 
 const cookieName = "snaphood_session";
+const execFileAsync = promisify(execFile);
+
+type AuthChallengeRow = {
+  id: string;
+  email: string;
+  expires_at: Date;
+};
 
 function sign(value: string) {
   return createHmac("sha256", env.sessionSecret).update(value).digest("base64url");
@@ -69,6 +78,94 @@ export async function createSession(email: string) {
   return user.rows[0];
 }
 
+export async function createMagicLink(email: string) {
+  const normalizedEmail = email.trim().toLowerCase();
+  const token = randomBytes(32).toString("base64url");
+  const tokenHash = hashToken(token);
+  const id = crypto.randomUUID();
+  const expiresAt = new Date(Date.now() + env.authMagicLinkTtlMinutes * 60 * 1000);
+
+  await query(
+    `
+      insert into snaphood_auth_challenges (id, email, token_hash, expires_at)
+      values ($1, $2, $3, $4)
+    `,
+    [id, normalizedEmail, tokenHash, expiresAt]
+  );
+
+  return {
+    email: normalizedEmail,
+    token,
+    expiresAt,
+    url: `${env.appUrl.replace(/\/$/, "")}/api/auth/verify?token=${encodeURIComponent(token)}`
+  };
+}
+
+export async function sendMagicLink(input: { email: string; url: string; expiresAt: Date }) {
+  const subject = "Sign in to SnapHood";
+  const text = [
+    "Open this link to sign in to SnapHood:",
+    "",
+    input.url,
+    "",
+    `This link expires at ${input.expiresAt.toISOString()}.`,
+    "If you did not request it, ignore this email."
+  ].join("\n");
+  if (env.authEmailMode !== "wrkr") {
+    return {
+      mode: "dry-run",
+      delivered: false
+    };
+  }
+
+  const args = [
+    "email",
+    "send",
+    "--to",
+    input.email,
+    "--subject",
+    subject,
+    "--text",
+    text,
+    "--idempotency-key",
+    `snaphood-auth-${hashToken(input.url).slice(0, 24)}`,
+    "--json"
+  ];
+
+  if (env.authEmailFrom) {
+    args.push("--from", env.authEmailFrom);
+  }
+
+  await execFileAsync("wrkr", args, { timeout: 30_000 });
+
+  return {
+    mode: "wrkr",
+    delivered: true
+  };
+}
+
+export async function verifyMagicLink(token: string) {
+  const tokenHash = hashToken(token);
+  const result = await query<AuthChallengeRow>(
+    `
+      update snaphood_auth_challenges
+      set used_at = now()
+      where token_hash = $1
+        and used_at is null
+        and expires_at > now()
+      returning id, email, expires_at
+    `,
+    [tokenHash]
+  );
+
+  const challenge = result.rows[0];
+  if (!challenge) {
+    return null;
+  }
+
+  return createSession(challenge.email);
+}
+
 export async function clearSession() {
   const jar = await cookies();
   jar.set(cookieName, "", {
@@ -99,4 +196,8 @@ export async function getCurrentUser() {
   );
 
   return result.rows[0] ?? null;
+}
+
+function hashToken(token: string) {
+  return createHash("sha256").update(`${env.sessionSecret}:${token}`).digest("hex");
 }

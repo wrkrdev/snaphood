@@ -100,6 +100,8 @@ export default function SnapHoodApp() {
   const [email, setEmail] = useState("demo@snaphood.fun");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [authNotice, setAuthNotice] = useState("");
+  const [authMagicLink, setAuthMagicLink] = useState("");
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [draft, setDraft] = useState<TokenDraft | null>(null);
   const [coins, setCoins] = useState<LaunchedCoin[]>([]);
@@ -123,6 +125,17 @@ export default function SnapHoodApp() {
   useEffect(() => {
     void refreshSession();
     void refreshCoins();
+    const authStatus = new URLSearchParams(window.location.search).get("auth");
+    if (authStatus === "verified") {
+      setAuthNotice("Signed in with magic link.");
+      window.history.replaceState({}, "", window.location.pathname);
+    } else if (authStatus === "expired") {
+      setError("That sign-in link expired or was already used.");
+      window.history.replaceState({}, "", window.location.pathname);
+    } else if (authStatus === "missing") {
+      setError("Sign-in link is missing a token.");
+      window.history.replaceState({}, "", window.location.pathname);
+    }
     void fetch("/api/health")
       .then((response) => response.json())
       .then(setHealth)
@@ -189,6 +202,8 @@ export default function SnapHoodApp() {
   async function signIn() {
     setBusy("auth");
     setError("");
+    setAuthNotice("");
+    setAuthMagicLink("");
     try {
       const response = await fetch("/api/auth/start", {
         method: "POST",
@@ -197,7 +212,16 @@ export default function SnapHoodApp() {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not sign in.");
-      setUser(data.user);
+      if (data.user) {
+        setUser(data.user);
+        setAuthNotice("");
+        return;
+      }
+
+      if (data.sent) {
+        setAuthNotice(`Magic link sent to ${data.email}.`);
+        setAuthMagicLink(data.magicLink ?? "");
+      }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not sign in.");
     } finally {
@@ -506,11 +530,21 @@ export default function SnapHoodApp() {
                           onChange={(event) => setEmail(event.target.value)}
                           placeholder="you@example.com"
                         />
-                  <button className="btn primary" onClick={signIn} disabled={busy === "auth"} type="button">
+                        <button className="btn primary" onClick={signIn} disabled={busy === "auth"} type="button">
                           {busy === "auth" ? "..." : "Start"}
                         </button>
                       </div>
                     </label>
+                    {authNotice ? (
+                      <div className="toast">
+                        <strong>{authNotice}</strong>
+                        {authMagicLink ? (
+                          <a href={authMagicLink}>
+                            Open local magic link <ExternalLink size={13} />
+                          </a>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
                 ) : (
                   <>

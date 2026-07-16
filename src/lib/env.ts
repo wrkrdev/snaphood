@@ -4,6 +4,9 @@ export const env = {
   redisUrl: process.env.REDIS_URL ?? "",
   sessionSecret: process.env.SNAPHOOD_SESSION_SECRET ?? "snaphood-local-demo-secret",
   demoAuthEnabled: process.env.SNAPHOOD_DEMO_AUTH_ENABLED !== "false",
+  authEmailMode: process.env.SNAPHOOD_AUTH_EMAIL_MODE ?? "dry-run",
+  authEmailFrom: process.env.SNAPHOOD_AUTH_EMAIL_FROM ?? "",
+  authMagicLinkTtlMinutes: Number(process.env.SNAPHOOD_AUTH_MAGIC_LINK_TTL_MINUTES ?? "15"),
   adminEmails: (process.env.SNAPHOOD_ADMIN_EMAILS ?? "")
     .split(",")
     .map((email) => email.trim().toLowerCase())
@@ -54,6 +57,8 @@ export function getReadiness() {
     chain: Boolean(env.robinhoodRpcUrl),
     deployer: Boolean(env.deployerPrivateKey),
     adminConfigured: env.adminEmails.length > 0,
+    demoAuthEnabled: env.demoAuthEnabled,
+    authEmailMode: env.authEmailMode,
     launchMode: env.launchMode,
     network: env.robinhoodNetwork,
     chainId: env.robinhoodChainId
