@@ -28,6 +28,7 @@
     "verify:readiness": "node scripts/readiness.mjs",
     "verify:public-release": "node scripts/public-release-audit.mjs",
     "dex:sync": "node scripts/sync-dexscreener.mjs",
+    "index:swap": "node scripts/index-swap.mjs",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed": "node scripts/seed-demo.mjs",
     "db:maintenance": "node scripts/maintenance.mjs"
