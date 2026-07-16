@@ -40,6 +40,9 @@ jobs:
       - name: Verify AI normalization
         run: npm run verify:ai-normalization
 
+      - name: Verify image validation
+        run: npm run verify:image-validation
+
       - name: Verify contract artifact
         run: npm run contract:verify
 

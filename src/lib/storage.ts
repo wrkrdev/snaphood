@@ -3,8 +3,10 @@ import path from "path";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { env } from "@/lib/env";
+import { maxRasterImageBytes, normalizeImageType, validateRasterBytes } from "@/lib/image-validation";
 
 const execFileAsync = promisify(execFile);
+const remoteImageFetchTimeoutMs = 15_000;
 
 export async function saveUpload(file: File) {
   const bytes = Buffer.from(await file.arrayBuffer());
@@ -21,13 +23,27 @@ export async function saveRemoteImage(url: string, namespace: "generated" | "upl
     return { url, key: url.replace(/^\//, ""), localPath: path.join(process.cwd(), "public", url) };
   }
 
-  const response = await fetch(url);
+  const parsedUrl = safeRemoteImageUrl(url);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), remoteImageFetchTimeoutMs);
+  let response: Response;
+  try {
+    response = await fetch(parsedUrl, { signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+
   if (!response.ok) {
     throw new Error(`Could not fetch generated image: ${response.status}`);
   }
 
-  const contentType = response.headers.get("content-type") ?? "image/jpeg";
-  const bytes = Buffer.from(await response.arrayBuffer());
+  const contentType = normalizeImageType(response.headers.get("content-type") ?? "");
+  const bytes = await readLimitedImageBody(response);
+  const imageError = validateRasterBytes(bytes, contentType);
+  if (imageError) {
+    throw new Error(`Generated image rejected: ${imageError}`);
+  }
+
   return saveBuffer(bytes, {
     extension: extensionFor(contentType, url),
     contentType,
@@ -68,6 +84,55 @@ async function saveBuffer(
   }
 
   return { url: `/uploads/${filename}`, key, localPath };
+}
+
+function safeRemoteImageUrl(url: string) {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error("Generated image URL is invalid.");
+  }
+
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    throw new Error("Generated image URL must be http or https.");
+  }
+
+  return parsed;
+}
+
+async function readLimitedImageBody(response: Response) {
+  const contentLength = Number(response.headers.get("content-length") ?? 0);
+  if (contentLength > maxRasterImageBytes) {
+    throw new Error("Generated image is larger than 8 MB.");
+  }
+
+  if (!response.body) {
+    const bytes = Buffer.from(await response.arrayBuffer());
+    if (bytes.byteLength > maxRasterImageBytes) {
+      throw new Error("Generated image is larger than 8 MB.");
+    }
+    return bytes;
+  }
+
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  const reader = response.body.getReader();
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+
+    size += value.byteLength;
+    if (size > maxRasterImageBytes) {
+      await reader.cancel().catch(() => undefined);
+      throw new Error("Generated image is larger than 8 MB.");
+    }
+    chunks.push(value);
+  }
+
+  return Buffer.concat(chunks);
 }
 
 function extensionFor(contentType: string, name: string) {

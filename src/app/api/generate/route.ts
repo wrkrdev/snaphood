@@ -33,10 +33,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Upload an image file." }, { status: 400 });
   }
 
-  if (file.size > 8 * 1024 * 1024) {
-    return NextResponse.json({ error: "Image must be 8 MB or smaller." }, { status: 400 });
-  }
-
   const imageError = await validateRasterImage(file);
   if (imageError) {
     return NextResponse.json({ error: imageError }, { status: 400 });
@@ -46,8 +42,8 @@ export async function POST(request: Request) {
     const [upload, generated] = await Promise.all([saveUpload(file), generateDraftFromImage(file)]);
     const images = await generateBrandImages(generated, upload.url);
     const [profileImage, bannerImage] = await Promise.all([
-      saveRemoteImage(images.profileImageUrl, "generated").catch(() => ({ url: images.profileImageUrl })),
-      saveRemoteImage(images.bannerImageUrl, "generated").catch(() => ({ url: images.bannerImageUrl }))
+      saveRemoteImage(images.profileImageUrl, "generated").catch(() => ({ url: upload.url })),
+      saveRemoteImage(images.bannerImageUrl, "generated").catch(() => ({ url: upload.url }))
     ]);
     const id = crypto.randomUUID();
 

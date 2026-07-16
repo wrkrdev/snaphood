@@ -16,6 +16,7 @@
     "verify:secrets": "node scripts/check-secrets.mjs",
     "verify:smoke": "node scripts/smoke.mjs",
     "verify:ai-normalization": "tsx scripts/ai-normalization.ts",
+    "verify:image-validation": "tsx scripts/image-validation.ts",
     "verify:auth-challenge-consistency": "node scripts/auth-challenge-consistency.mjs",
     "verify:launch-consistency": "node scripts/launch-consistency.mjs",
     "verify:readiness": "node scripts/readiness.mjs",

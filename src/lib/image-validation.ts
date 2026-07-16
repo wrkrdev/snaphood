@@ -1,16 +1,44 @@
+export const maxRasterImageBytes = 8 * 1024 * 1024;
+
 const allowedImageTypes = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
 
 export async function validateRasterImage(file: File) {
-  if (!allowedImageTypes.has(file.type)) {
+  if (file.size > maxRasterImageBytes) {
+    return "Image must be 8 MB or smaller.";
+  }
+
+  const contentType = normalizeImageType(file.type);
+  if (!allowedImageTypes.has(contentType)) {
     return "Upload a PNG, JPEG, WebP, or GIF image.";
   }
 
   const header = new Uint8Array(await file.slice(0, 16).arrayBuffer());
-  if (!matchesSignature(file.type, header)) {
+  if (!matchesSignature(contentType, header)) {
     return "Image content does not match the uploaded file type.";
   }
 
   return null;
+}
+
+export function validateRasterBytes(bytes: Uint8Array, contentType: string) {
+  if (bytes.byteLength > maxRasterImageBytes) {
+    return "Image must be 8 MB or smaller.";
+  }
+
+  const normalizedType = normalizeImageType(contentType);
+  if (!allowedImageTypes.has(normalizedType)) {
+    return "Upload a PNG, JPEG, WebP, or GIF image.";
+  }
+
+  if (!matchesSignature(normalizedType, bytes.slice(0, 16))) {
+    return "Image content does not match the uploaded file type.";
+  }
+
+  return null;
+}
+
+export function normalizeImageType(contentType: string) {
+  return contentType.split(";")[0]?.trim().toLowerCase() ?? "";
 }
 
 function matchesSignature(contentType: string, header: Uint8Array) {
