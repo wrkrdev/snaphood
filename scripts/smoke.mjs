@@ -5,6 +5,7 @@ const syntheticIp = `198.51.100.${Math.floor(Math.random() * 200) + 1}`;
 
 const checks = [];
 const cookieJar = [];
+let signedIn = false;
 
 await checkPage("/", "SnapHood");
 await checkPage("/stack", "Wrkr proof");
@@ -55,13 +56,18 @@ const authPayload = await postJson("/api/auth/start", {
 if (health.readiness?.demoAuthEnabled) {
   assert(authPayload.user?.email, "demo auth should return a user");
   assert(authPayload.mode === "demo", "demo auth should report demo mode");
+  signedIn = true;
 } else {
   assert(authPayload.sent === true, "magic-link auth should report a sent link");
   assert(authPayload.email, "magic-link auth should return normalized email");
+  if (authPayload.magicLink) {
+    await verifyMagicLink(authPayload.magicLink);
+    signedIn = true;
+  }
 }
 
 if (verifyGenerate) {
-  assert(health.readiness?.demoAuthEnabled, "generate smoke currently requires demo auth so the script can hold a session");
+  assert(signedIn, "generate smoke requires demo auth or a dry-run magic link so the script can hold a session");
   const generated = await postImage("/api/generate");
   const draft = generated.draft;
   assert(draft?.id, "generate response should include a draft id");
@@ -73,6 +79,16 @@ if (verifyGenerate) {
     assert(isHttpUrl(draft.bannerImageUrl), "storage-backed banner image should use a public URL");
   }
   assert(Array.isArray(draft?.tokenomics?.allocation), "generated draft should include tokenomics allocation");
+}
+
+async function verifyMagicLink(url) {
+  const response = await fetch(url, {
+    headers: withCookies({ "x-forwarded-for": syntheticIp }),
+    redirect: "manual"
+  });
+  captureCookies(response);
+  assert([302, 303, 307, 308].includes(response.status), `magic-link verify should redirect after setting a session, got ${response.status}`);
+  checks.push({ name: "/api/auth/verify", status: response.status });
 }
 
 const adminResponse = await fetch(`${baseUrl}/api/admin/coins/${coinsPayload.coins?.[0]?.contractAddress ?? "0x0000000000000000000000000000000000000000"}/sync-dex`, {
