@@ -333,6 +333,10 @@ FAL_IMAGE_EDIT_MODEL="fal-ai/flux-kontext/dev"
 
 ## Public Release Notes
 
-Keep the repository private until the checklist in [docs/PUBLIC_RELEASE.md](docs/PUBLIC_RELEASE.md) is complete.
+Release hardening — secret scanning, security headers, deliberate rate limits, and non-spending demo defaults — is documented in [docs/PUBLIC_RELEASE.md](docs/PUBLIC_RELEASE.md) and enforced by `npm run verify:public-release` in CI. Real secrets live only in a local, git-ignored `.env.local`; `.env.example` ships blank placeholders.
 
-Product direction and next-session UX work are tracked in [docs/CANON.md](docs/CANON.md).
+Product direction and shipped UX work are tracked in [docs/CANON.md](docs/CANON.md).
+
+## License
+
+SnapHood is released under the [MIT License](LICENSE).

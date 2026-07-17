@@ -3,6 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "description": "Snap-to-meme-token demo for Robinhood Chain on the Wrkr stack.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wrkrdev/snaphood.git"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
