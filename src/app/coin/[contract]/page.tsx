@@ -7,6 +7,7 @@ import { env, isAdminEmail } from "@/lib/env";
 import { AdminTradingPanel } from "@/components/AdminTradingPanel";
 import { CreatorTradingPanel } from "@/components/CreatorTradingPanel";
 import { DexSyncPanel } from "@/components/DexSyncPanel";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import type { Tokenomics } from "@/lib/types";
 
 export async function generateMetadata({ params }: { params: Promise<{ contract: string }> }): Promise<Metadata> {
@@ -82,6 +83,13 @@ export default async function CoinPage({ params }: { params: Promise<{ contract:
 
   return (
     <main className="coin-page">
+      <div className="page-toolbar">
+        <a className="page-toolbar-brand" href="/">
+          <span className="brand-mark">S</span>
+          <span>SnapHood</span>
+        </a>
+        <ThemeToggle className="small" />
+      </div>
       <section className="coin-hero-detail">
         <div className="coin-hero-media">
           <img src={coin.bannerImageUrl} alt="" />

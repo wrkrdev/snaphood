@@ -2,6 +2,7 @@ import { Activity, Brain, Database, HardDrive, Mail, Network, ShieldCheck, Walle
 import { getReadiness } from "@/lib/env";
 import { hasDatabase, query } from "@/lib/db";
 import { hasWrkrStorageCli, pingRedis } from "@/lib/runtime-readiness";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export default async function StackPage() {
   const readiness = getReadiness();
@@ -50,6 +51,13 @@ export default async function StackPage() {
 
   return (
     <main className="stack-page">
+      <div className="page-toolbar">
+        <a className="page-toolbar-brand" href="/">
+          <span className="brand-mark">S</span>
+          <span>SnapHood</span>
+        </a>
+        <ThemeToggle className="small" />
+      </div>
       <section className="stack-hero">
         <p className="eyebrow">Wrkr proof</p>
         <h1>Full-stack launchpad running on one workstation.</h1>

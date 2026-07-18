@@ -32,6 +32,7 @@ import {
 } from "viem";
 import type { LaunchAcknowledgements, LaunchedCoin, LaunchpadStats, TokenDraft, Tokenomics } from "@/lib/types";
 import SnapHoodToken from "@/generated/SnapHoodToken.json";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 declare global {
   interface Window {
@@ -825,6 +826,7 @@ export default function SnapHoodApp() {
             />
           </div>
           <div className="nav-actions">
+            <ThemeToggle className="small" />
             {health?.readiness.launchMode !== "demo" ? (
               <button className="btn ghost small" onClick={connectWallet} disabled={busy === "wallet"} type="button">
                 <Wallet size={14} />

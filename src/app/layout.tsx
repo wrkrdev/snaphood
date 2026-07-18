@@ -23,13 +23,20 @@ export const metadata: Metadata = {
   }
 };
 
+// Runs before first paint to set the theme from a saved choice or the OS preference,
+// so there is never a flash of the wrong theme on load.
+const themeInitScript = `(function(){try{var t=localStorage.getItem("snaphood-theme");if(t!=="light"&&t!=="dark"){t=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";}document.documentElement.dataset.theme=t;}catch(e){}})();`;
+
 export default function RootLayout({
   children
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
       <body>{children}</body>
     </html>
   );
