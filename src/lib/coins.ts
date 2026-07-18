@@ -1,7 +1,7 @@
 import { createHash } from "crypto";
 import { query } from "@/lib/db";
 import { env } from "@/lib/env";
-import type { LaunchpadStats, LaunchProof, LaunchedCoin } from "@/lib/types";
+import type { Leaderboard, LaunchpadStats, LaunchProof, LaunchedCoin, LeaderboardEntry } from "@/lib/types";
 
 type CoinRow = {
   id: string;
@@ -210,6 +210,91 @@ export async function getLaunchpadStats(options: { chainId?: number } = {}): Pro
     filters: {
       chainId: options.chainId
     }
+  };
+}
+
+// Score that ranks the leaderboard. Weighted so active trading counts, without letting
+// market cap (a far larger magnitude) drown out 24h volume entirely.
+export const LEADERBOARD_VOLUME_WEIGHT = 10;
+
+// SQL expression mirroring the JS score below, used only for ORDER BY so ranking happens
+// globally across every launched coin (not just a loaded page). nullif guards empty strings;
+// a missing marketCap falls back to fdv.
+const leaderboardScoreSql = `
+  coalesce(
+    nullif(t.dexscreener_pair->>'marketCap', '')::numeric,
+    nullif(t.dexscreener_pair->>'fdv', '')::numeric,
+    0
+  )
+  + coalesce(nullif(t.dexscreener_pair->'volume'->>'h24', '')::numeric, 0) * ${LEADERBOARD_VOLUME_WEIGHT}
+`;
+
+export async function listLeaderboard(
+  limit = 50,
+  options: { chainId?: number } = {}
+): Promise<LeaderboardEntry[]> {
+  const boundedLimit = Math.min(Math.max(Math.trunc(limit) || 0, 1), 100);
+  const result = await query<CoinRow>(
+    `
+      select d.id,
+             d.name,
+             d.ticker,
+             d.description,
+             d.original_image_url,
+             d.profile_image_url,
+             d.banner_image_url,
+             d.tokenomics,
+             d.contract_address,
+             d.tx_hash,
+             d.chain_id,
+             d.status,
+             d.created_at,
+             d.updated_at,
+             t.pool_address,
+             t.position_id,
+             t.fee_tier,
+             t.liquidity_token_amount,
+             t.liquidity_eth_amount,
+             t.liquidity_tx_hash,
+             t.swap_tx_hash,
+             t.dexscreener_url,
+             t.dexscreener_pair,
+             t.dexscreener_synced_at
+      from snaphood_token_drafts d
+      join snaphood_token_trading t on t.draft_id = d.id
+      where d.status = 'launched'
+        and d.contract_address is not null
+        and t.dexscreener_pair is not null
+        and ($2::int is null or d.chain_id = $2)
+      order by (${leaderboardScoreSql}) desc nulls last, d.updated_at desc, d.id desc
+      limit $1
+    `,
+    [boundedLimit, options.chainId ?? null]
+  );
+
+  return result.rows.map((row, index) => {
+    const coin = mapCoinRow(row);
+    const pair = row.dexscreener_pair;
+    const marketCapUsd = pairNumber(pair, ["marketCap"]) || pairNumber(pair, ["fdv"]);
+    const volume24hUsd = pairNumber(pair, ["volume", "h24"]);
+    const liquidityUsd = pairNumber(pair, ["liquidity", "usd"]);
+    return {
+      rank: index + 1,
+      score: marketCapUsd + volume24hUsd * LEADERBOARD_VOLUME_WEIGHT,
+      marketCapUsd,
+      volume24hUsd,
+      liquidityUsd,
+      coin
+    };
+  });
+}
+
+export async function getLeaderboard(options: { chainId?: number; limit?: number } = {}): Promise<Leaderboard> {
+  const entries = await listLeaderboard(options.limit ?? 50, { chainId: options.chainId });
+  return {
+    entries,
+    generatedAt: new Date().toISOString(),
+    filters: { chainId: options.chainId }
   };
 }
 

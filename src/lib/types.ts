@@ -88,6 +88,23 @@ export type LaunchpadStats = {
   };
 };
 
+export type LeaderboardEntry = {
+  rank: number;
+  score: number;
+  marketCapUsd: number;
+  volume24hUsd: number;
+  liquidityUsd: number;
+  coin: LaunchedCoin;
+};
+
+export type Leaderboard = {
+  entries: LeaderboardEntry[];
+  generatedAt: string;
+  filters: {
+    chainId?: number;
+  };
+};
+
 export type LaunchProofTimelineItem = {
   label: string;
   status: "complete" | "pending";

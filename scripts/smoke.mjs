@@ -13,6 +13,7 @@ await checkSecurityHeaders("/");
 await checkOriginGuard();
 await postRawStatus("/api/auth/start", "{", 400, "malformed auth JSON");
 await checkPage("/stack", "Wrkr proof");
+await checkPage("/leaderboard", "Top SnapHood coins");
 await checkPage("/robots.txt", "Sitemap:");
 
 const health = await checkJson("/api/health", "health");
@@ -39,6 +40,22 @@ assert(typeof statsPayload.stats?.totalLiquidityUsd === "number", "coin stats sh
 assert(typeof statsPayload.stats?.totalVolume24hUsd === "number", "coin stats should include totalVolume24hUsd");
 assert(statsPayload.stats.totalLaunches >= coinsPayload.coins.length, "stats total should cover the current feed page");
 await checkCacheHeader("/api/coins/stats", "coin stats cache");
+
+const leaderboardPayload = await checkJson("/api/coins/leaderboard", "leaderboard");
+assert(Array.isArray(leaderboardPayload.leaderboard?.entries), "leaderboard should include an entries array");
+assert(typeof leaderboardPayload.leaderboard?.generatedAt === "string", "leaderboard should include generatedAt");
+{
+  const entries = leaderboardPayload.leaderboard.entries;
+  entries.forEach((entry, index) => {
+    assert(entry.rank === index + 1, "leaderboard ranks should be 1-based and sequential");
+    assert(entry.coin?.contractAddress, "leaderboard entry should include its coin contract");
+    assert(typeof entry.score === "number", "leaderboard entry should include a numeric score");
+    if (index > 0) {
+      assert(entries[index - 1].score >= entry.score, "leaderboard entries should be sorted by descending score");
+    }
+  });
+}
+await checkCacheHeader("/api/coins/leaderboard", "leaderboard cache");
 
 if (requireCoin) {
   assert(coinsPayload.coins.length > 0, "expected at least one launched coin");

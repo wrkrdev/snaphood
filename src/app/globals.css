@@ -3492,3 +3492,344 @@ a.trade-step-state {
   font-weight: 850;
   text-decoration: none;
 }
+
+.page-toolbar-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ---------- Leaderboard ---------- */
+
+.leaderboard-page {
+  display: grid;
+  gap: 18px;
+  min-height: 100vh;
+  background: var(--wash);
+  padding: 18px;
+}
+
+.leaderboard-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.leaderboard-head h1 {
+  margin: 10px 0 0;
+  font-size: clamp(30px, 4vw, 44px);
+  line-height: 1;
+}
+
+.leaderboard-head .eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.leaderboard-sub {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.leaderboard-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border-10);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ink-soft);
+  padding: 6px 8px 6px 12px;
+  font-size: 13px;
+  font-weight: 760;
+}
+
+.leaderboard-live-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--hood-green);
+  animation: chart-blink 1.4s ease-in-out infinite;
+}
+
+.leaderboard-live.refreshing {
+  border-color: rgba(0, 200, 5, 0.4);
+  color: var(--hood-green-dark);
+}
+
+/* Podium */
+.leaderboard-podium {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.podium-card {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  border: 1px solid var(--border-10);
+  border-radius: 14px;
+  background: var(--paper);
+  padding: 18px 14px;
+  color: var(--ink);
+  text-decoration: none;
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.podium-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(0, 200, 5, 0.4);
+}
+
+.podium-card.rank-1 {
+  order: 2;
+  border-color: rgba(0, 200, 5, 0.4);
+  background:
+    radial-gradient(120% 90% at 50% -10%, rgba(0, 200, 5, 0.16), rgba(255, 255, 255, 0) 60%),
+    var(--paper);
+  box-shadow: 0 16px 50px rgba(0, 200, 5, 0.14);
+}
+
+.podium-card.rank-2 {
+  order: 1;
+}
+
+.podium-card.rank-3 {
+  order: 3;
+}
+
+.podium-rank {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  background: var(--chip);
+  color: var(--ink-soft);
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.podium-card.rank-1 .podium-rank {
+  background: var(--mint);
+  color: var(--green-ink);
+}
+
+.podium-card.rank-1 .podium-rank svg {
+  color: #f5c518;
+}
+
+.podium-avatar {
+  width: 68px;
+  height: 68px;
+  border: 2px solid var(--border-14);
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.podium-card.rank-1 .podium-avatar {
+  width: 84px;
+  height: 84px;
+  border-color: rgba(0, 200, 5, 0.5);
+}
+
+.podium-copy {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  text-align: center;
+}
+
+.podium-copy strong {
+  overflow: hidden;
+  max-width: 100%;
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.podium-copy span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.podium-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  width: 100%;
+}
+
+.podium-stats div {
+  display: grid;
+  gap: 2px;
+  border: 1px solid var(--border-08);
+  border-radius: 10px;
+  background: var(--surface-2);
+  padding: 8px;
+  text-align: center;
+}
+
+.podium-stats span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 760;
+}
+
+.podium-stats strong {
+  font-size: 14px;
+}
+
+/* Ranked table */
+.leaderboard-table {
+  display: grid;
+  gap: 2px;
+  overflow: hidden;
+  border: 1px solid var(--border-10);
+  border-radius: 14px;
+  background: var(--paper);
+}
+
+.leaderboard-row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 108px 96px 108px 76px;
+  gap: 10px;
+  align-items: center;
+  padding: 12px 16px;
+  color: var(--ink);
+  text-decoration: none;
+  border-bottom: 1px solid var(--border-08);
+  transition: background 140ms ease;
+}
+
+.leaderboard-row:last-child {
+  border-bottom: 0;
+}
+
+.leaderboard-row:not(.leaderboard-row-head):hover {
+  background: var(--surface-2);
+}
+
+.leaderboard-row-head {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 820;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  cursor: default;
+}
+
+.leaderboard-row .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 720;
+}
+
+.rank-cell {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--chip);
+  color: var(--ink-soft);
+  font-weight: 850;
+  font-variant-numeric: tabular-nums;
+}
+
+.rank-cell.top {
+  background: var(--mint);
+  color: var(--green-ink);
+}
+
+.coin-cell {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.coin-cell img {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex: none;
+}
+
+.coin-cell-copy {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.coin-cell-copy strong {
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.coin-cell-copy span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.score-cell {
+  color: var(--hood-green-dark);
+}
+
+.chart-cell {
+  display: inline-flex;
+  justify-content: flex-end;
+}
+
+.chart-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  background: var(--amber-hint);
+  color: var(--amber-ink);
+  padding: 4px 9px;
+  font-size: 12px;
+  font-weight: 780;
+}
+
+.chart-flag.live {
+  background: var(--mint);
+  color: var(--green-ink);
+}
+
+@media (max-width: 720px) {
+  .leaderboard-row {
+    grid-template-columns: 34px minmax(0, 1fr) 84px 84px;
+  }
+
+  .leaderboard-row .score-cell,
+  .leaderboard-row .chart-cell,
+  .leaderboard-row-head span:nth-child(5),
+  .leaderboard-row-head span:nth-child(6) {
+    display: none;
+  }
+
+  .leaderboard-podium {
+    grid-template-columns: 1fr;
+  }
+
+  .podium-card.rank-1,
+  .podium-card.rank-2,
+  .podium-card.rank-3 {
+    order: initial;
+  }
+}

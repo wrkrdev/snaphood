@@ -796,6 +796,10 @@ export default function SnapHoodApp() {
             <Flame size={16} />
             <span>Explore</span>
           </a>
+          <a className="side-link" href="/leaderboard">
+            <Trophy size={16} />
+            <span>Leaderboard</span>
+          </a>
           <a className="side-link" href="#create">
             <Rocket size={16} />
             <span>Create</span>
